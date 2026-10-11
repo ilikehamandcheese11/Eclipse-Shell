@@ -20,6 +20,9 @@ import random
 import string
 import datetime
 import json
+import zipfile
+import tarfile
+import tempfile
 
 # ============================================================
 #  STATE
@@ -29,11 +32,11 @@ STATE = {
     "user": "eclipse",
     "host": "eclipse",
     "history": [],
-    "version": "0.2.0",
+    "version": "0.3.1",
     "status": "indev",
     "author": "ilikehamandcheese11",
-    "youtube": "@yourhandle",
-    "discord": "@yourname",
+    "youtube": "https://www.youtube.com/@ilikehamandcheese11",
+    "discord": "@ilikehamandcheese11",
 }
 
 COMMANDS = {}
@@ -88,14 +91,21 @@ def resolve_path(path):
 
 
 def run_shell(cmd, live=False, timeout=30):
+    """Run a shell command safely with UTF-8 decoding and error recovery."""
     try:
         if live:
             subprocess.run(cmd, shell=True)
             return ""
         result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=timeout
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
         )
-        out = result.stdout
+        out = result.stdout or ""
         if result.stderr:
             out += "\n[stderr]\n" + result.stderr
         return out if out.strip() else "[no output]"
@@ -114,8 +124,13 @@ def get_processes():
         if is_windows():
             out = subprocess.run(
                 'tasklist /FO CSV /NH',
-                shell=True, capture_output=True, text=True, timeout=20
-            ).stdout
+                shell=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+            ).stdout or ""
             reader = csv.reader(io.StringIO(out))
             for row in reader:
                 if len(row) >= 5:
@@ -139,8 +154,13 @@ def get_processes():
         elif is_android() or is_linux():
             out = subprocess.run(
                 'ps -eo pid,user,comm,rss',
-                shell=True, capture_output=True, text=True, timeout=20
-            ).stdout
+                shell=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+            ).stdout or ""
             lines = out.strip().splitlines()
             if len(lines) >= 2:
                 for line in lines[1:]:
@@ -194,6 +214,23 @@ def human_bytes(b):
     return f"{tb:.2f} TB"
 
 
+def _safe_run(cmd, timeout=15):
+    """Utility: run a command and return stdout safely (UTF-8 + replace)."""
+    try:
+        r = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+        return r.stdout or ""
+    except Exception:
+        return ""
+
+
 # ============================================================
 #  VRAM (REGISTRY METHOD — 64-BIT, NO 4GB CAP)
 # ============================================================
@@ -201,10 +238,7 @@ def _read_vram_from_registry(gpu_name):
     try:
         base = r"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
 
-        r = subprocess.run(
-            f'reg query "{base}" /s /v HardwareInformation.qwMemorySize',
-            shell=True, capture_output=True, text=True, timeout=15
-        ).stdout
+        r = _safe_run(f'reg query "{base}" /s /v HardwareInformation.qwMemorySize', timeout=15)
 
         current_key = None
         vram_by_key = {}
@@ -226,10 +260,7 @@ def _read_vram_from_registry(gpu_name):
 
         if gpu_name:
             for key, vram in vram_by_key.items():
-                r2 = subprocess.run(
-                    f'reg query "{key}" /v DriverDesc',
-                    shell=True, capture_output=True, text=True, timeout=10
-                ).stdout
+                r2 = _safe_run(f'reg query "{key}" /v DriverDesc', timeout=10)
                 if gpu_name.lower() in r2.lower():
                     return vram
 
@@ -244,108 +275,73 @@ def _read_vram_from_registry(gpu_name):
 def _win_specs():
     info = {}
 
-    try:
-        r = subprocess.run(
-            'wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed /format:list',
-            shell=True, capture_output=True, text=True, timeout=15
-        ).stdout
-        for line in r.splitlines():
-            line = line.strip()
-            if line.startswith("Name="):
-                info["cpu_name"] = line.split("=", 1)[1]
-            elif line.startswith("NumberOfCores="):
-                info["cpu_cores"] = line.split("=", 1)[1]
-            elif line.startswith("NumberOfLogicalProcessors="):
-                info["cpu_threads"] = line.split("=", 1)[1]
-            elif line.startswith("MaxClockSpeed="):
-                info["cpu_mhz"] = line.split("=", 1)[1]
-    except Exception:
-        pass
+    r = _safe_run('wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed /format:list')
+    for line in r.splitlines():
+        line = line.strip()
+        if line.startswith("Name="):
+            info["cpu_name"] = line.split("=", 1)[1]
+        elif line.startswith("NumberOfCores="):
+            info["cpu_cores"] = line.split("=", 1)[1]
+        elif line.startswith("NumberOfLogicalProcessors="):
+            info["cpu_threads"] = line.split("=", 1)[1]
+        elif line.startswith("MaxClockSpeed="):
+            info["cpu_mhz"] = line.split("=", 1)[1]
 
-    try:
-        r = subprocess.run(
-            'wmic computersystem get TotalPhysicalMemory /format:list',
-            shell=True, capture_output=True, text=True, timeout=15
-        ).stdout
-        for line in r.splitlines():
-            if line.strip().startswith("TotalPhysicalMemory="):
+    r = _safe_run('wmic computersystem get TotalPhysicalMemory /format:list')
+    for line in r.splitlines():
+        if line.strip().startswith("TotalPhysicalMemory="):
+            try:
                 info["ram_bytes"] = int(line.strip().split("=", 1)[1])
-    except Exception:
-        pass
+            except ValueError:
+                pass
 
-    try:
-        r = subprocess.run(
-            'wmic path win32_VideoController get Name /format:list',
-            shell=True, capture_output=True, text=True, timeout=15
-        ).stdout
-        gpus = []
-        for line in r.splitlines():
-            line = line.strip()
-            if line.startswith("Name=") and line.split("=", 1)[1]:
-                gpus.append({"name": line.split("=", 1)[1]})
+    r = _safe_run('wmic path win32_VideoController get Name /format:list')
+    gpus = []
+    for line in r.splitlines():
+        line = line.strip()
+        if line.startswith("Name=") and line.split("=", 1)[1]:
+            gpus.append({"name": line.split("=", 1)[1]})
+    for g in gpus:
+        g["vram"] = _read_vram_from_registry(g.get("name", ""))
+    if gpus:
+        info["gpus"] = gpus
 
-        for g in gpus:
-            g["vram"] = _read_vram_from_registry(g.get("name", ""))
+    r = _safe_run('wmic baseboard get Product,Manufacturer /format:list')
+    for line in r.splitlines():
+        line = line.strip()
+        if line.startswith("Product=") and line.split("=", 1)[1]:
+            info["motherboard"] = line.split("=", 1)[1]
+        elif line.startswith("Manufacturer=") and line.split("=", 1)[1]:
+            info["mobo_vendor"] = line.split("=", 1)[1]
 
-        if gpus:
-            info["gpus"] = gpus
-    except Exception:
-        pass
+    r = _safe_run('wmic computersystem get Manufacturer,Model /format:list')
+    for line in r.splitlines():
+        line = line.strip()
+        if line.startswith("Manufacturer=") and line.split("=", 1)[1]:
+            info["sys_vendor"] = line.split("=", 1)[1]
+        elif line.startswith("Model=") and line.split("=", 1)[1]:
+            info["sys_model"] = line.split("=", 1)[1]
 
-    try:
-        r = subprocess.run(
-            'wmic baseboard get Product,Manufacturer /format:list',
-            shell=True, capture_output=True, text=True, timeout=15
-        ).stdout
-        for line in r.splitlines():
-            line = line.strip()
-            if line.startswith("Product=") and line.split("=", 1)[1]:
-                info["motherboard"] = line.split("=", 1)[1]
-            elif line.startswith("Manufacturer=") and line.split("=", 1)[1]:
-                info["mobo_vendor"] = line.split("=", 1)[1]
-    except Exception:
-        pass
-
-    try:
-        r = subprocess.run(
-            'wmic computersystem get Manufacturer,Model /format:list',
-            shell=True, capture_output=True, text=True, timeout=15
-        ).stdout
-        for line in r.splitlines():
-            line = line.strip()
-            if line.startswith("Manufacturer=") and line.split("=", 1)[1]:
-                info["sys_vendor"] = line.split("=", 1)[1]
-            elif line.startswith("Model=") and line.split("=", 1)[1]:
-                info["sys_model"] = line.split("=", 1)[1]
-    except Exception:
-        pass
-
-    try:
-        r = subprocess.run(
-            'wmic diskdrive get Model,Size /format:list',
-            shell=True, capture_output=True, text=True, timeout=15
-        ).stdout
-        cur = {}
-        disks = []
-        for line in r.splitlines():
-            line = line.strip()
-            if line.startswith("Model="):
-                cur["model"] = line.split("=", 1)[1]
-            elif line.startswith("Size=") and line.split("=", 1)[1].strip():
-                try:
-                    cur["size"] = int(line.split("=", 1)[1])
-                except ValueError:
-                    cur["size"] = None
-                if "model" in cur:
-                    if cur.get("size"):
-                        disks.append(f"{cur['model']} ({human_bytes(cur['size'])})")
-                    else:
-                        disks.append(cur["model"])
-                cur = {}
-        if disks:
-            info["disks"] = disks
-    except Exception:
-        pass
+    r = _safe_run('wmic diskdrive get Model,Size /format:list')
+    cur = {}
+    disks = []
+    for line in r.splitlines():
+        line = line.strip()
+        if line.startswith("Model="):
+            cur["model"] = line.split("=", 1)[1]
+        elif line.startswith("Size=") and line.split("=", 1)[1].strip():
+            try:
+                cur["size"] = int(line.split("=", 1)[1])
+            except ValueError:
+                cur["size"] = None
+            if "model" in cur:
+                if cur.get("size"):
+                    disks.append(f"{cur['model']} ({human_bytes(cur['size'])})")
+                else:
+                    disks.append(cur["model"])
+            cur = {}
+    if disks:
+        info["disks"] = disks
 
     return info
 
@@ -382,48 +378,30 @@ def _linux_specs():
         pass
 
     if is_android():
-        try:
-            info["sys_model"] = subprocess.run(
-                "getprop ro.product.model",
-                shell=True, capture_output=True, text=True, timeout=5
-            ).stdout.strip()
-            info["sys_vendor"] = subprocess.run(
-                "getprop ro.product.manufacturer",
-                shell=True, capture_output=True, text=True, timeout=5
-            ).stdout.strip()
-            android_ver = subprocess.run(
-                "getprop ro.build.version.release",
-                shell=True, capture_output=True, text=True, timeout=5
-            ).stdout.strip()
-            if android_ver:
-                info["android_version"] = android_ver
-        except Exception:
-            pass
+        info["sys_model"] = _safe_run("getprop ro.product.model", timeout=5).strip()
+        info["sys_vendor"] = _safe_run("getprop ro.product.manufacturer", timeout=5).strip()
+        android_ver = _safe_run("getprop ro.build.version.release", timeout=5).strip()
+        if android_ver:
+            info["android_version"] = android_ver
 
     return info
 
 
 def _mac_specs():
     info = {}
-    try:
-        r = subprocess.run(
-            "system_profiler SPHardwareDataType",
-            shell=True, capture_output=True, text=True, timeout=20
-        ).stdout
-        for line in r.splitlines():
-            line = line.strip()
-            if line.startswith("Chip:") or line.startswith("Processor Name:"):
-                info["cpu_name"] = line.split(":", 1)[1].strip()
-            elif line.startswith("Total Number of Cores:"):
-                info["cpu_threads"] = line.split(":", 1)[1].strip()
-            elif line.startswith("Memory:"):
-                info["ram_str"] = line.split(":", 1)[1].strip()
-            elif line.startswith("Model Name:"):
-                info["sys_model"] = line.split(":", 1)[1].strip()
-            elif line.startswith("Model Identifier:"):
-                info["sys_id"] = line.split(":", 1)[1].strip()
-    except Exception:
-        pass
+    r = _safe_run("system_profiler SPHardwareDataType", timeout=20)
+    for line in r.splitlines():
+        line = line.strip()
+        if line.startswith("Chip:") or line.startswith("Processor Name:"):
+            info["cpu_name"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Total Number of Cores:"):
+            info["cpu_threads"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Memory:"):
+            info["ram_str"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Model Name:"):
+            info["sys_model"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Model Identifier:"):
+            info["sys_id"] = line.split(":", 1)[1].strip()
     return info
 
 
@@ -790,6 +768,35 @@ def cmd_version(args):
 @register("ver", "Show Eclipse Shell version (alias).")
 def cmd_ver(args):
     cmd_version(args)
+
+
+@register("commands", "Count total registered commands.")
+def cmd_commands(args):
+    print(f"  {len(COMMANDS)} commands registered")
+
+
+@register("allhelp", "List all commands in compact grid.")
+def cmd_allhelp(args):
+    names = sorted(COMMANDS.keys())
+    print(f"  {len(names)} commands:")
+    for i in range(0, len(names), 5):
+        row = "  ".join(f"{n:<12}" for n in names[i:i+5])
+        print(f"  {row}")
+
+
+@register("tips", "Show a random tip.")
+def cmd_tips(args):
+    tips = [
+        "Use pipes: tasklist | grep chrome",
+        "Redirect output: dir > files.txt",
+        "Find app easily: start notepad",
+        "Check specs: sysinfo",
+        "Add text to file: append notes.txt hello",
+        "Tree view: tree",
+        "Search files: findext py",
+        "Find TODOs: todo",
+    ]
+    print(f"  Tip: {random.choice(tips)}")
 
 
 # ============================================================
@@ -1160,6 +1167,137 @@ def cmd_size(args):
 
 
 # ============================================================
+#  ARCHIVE / COMPRESSION
+# ============================================================
+@register("zip", "Zip a file or folder.  Usage: zip <src> [output.zip]")
+def cmd_zip(args):
+    if not args:
+        print("[ERROR] Usage: zip <src> [output.zip]")
+        return
+    src = resolve_path(args[0])
+    if not os.path.exists(src):
+        print(f"[ERROR] Not found: {src}")
+        return
+    if len(args) > 1:
+        out = resolve_path(args[1])
+    else:
+        out = os.path.join(STATE["cwd"], os.path.basename(src.rstrip("/\\")) + ".zip")
+    try:
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+            if os.path.isfile(src):
+                zf.write(src, os.path.basename(src))
+            else:
+                for root, dirs, files in os.walk(src):
+                    for f in files:
+                        full = os.path.join(root, f)
+                        arc = os.path.relpath(full, os.path.dirname(src))
+                        zf.write(full, arc)
+        print(f"[ok] Zipped -> {out}")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("unzip", "Extract a .zip file.  Usage: unzip <file.zip> [dest]")
+def cmd_unzip(args):
+    if not args:
+        print("[ERROR] Usage: unzip <file.zip> [dest]")
+        return
+    src = resolve_path(args[0])
+    if not os.path.isfile(src):
+        print(f"[ERROR] File not found: {src}")
+        return
+    dest = resolve_path(args[1]) if len(args) > 1 else os.path.splitext(src)[0]
+    try:
+        os.makedirs(dest, exist_ok=True)
+        with zipfile.ZipFile(src, "r") as zf:
+            zf.extractall(dest)
+        print(f"[ok] Extracted -> {dest}")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("tar", "Tar a folder.  Usage: tar <src> [output.tar.gz]")
+def cmd_tar(args):
+    if not args:
+        print("[ERROR] Usage: tar <src> [output.tar.gz]")
+        return
+    src = resolve_path(args[0])
+    if not os.path.exists(src):
+        print(f"[ERROR] Not found: {src}")
+        return
+    if len(args) > 1:
+        out = resolve_path(args[1])
+    else:
+        out = os.path.join(STATE["cwd"], os.path.basename(src.rstrip("/\\")) + ".tar.gz")
+    try:
+        with tarfile.open(out, "w:gz") as tf:
+            tf.add(src, arcname=os.path.basename(src.rstrip("/\\")))
+        print(f"[ok] Tarball -> {out}")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("untar", "Extract a .tar.gz file.  Usage: untar <file.tar.gz> [dest]")
+def cmd_untar(args):
+    if not args:
+        print("[ERROR] Usage: untar <file.tar.gz> [dest]")
+        return
+    src = resolve_path(args[0])
+    if not os.path.isfile(src):
+        print(f"[ERROR] File not found: {src}")
+        return
+    dest = resolve_path(args[1]) if len(args) > 1 else STATE["cwd"]
+    try:
+        with tarfile.open(src, "r:gz") as tf:
+            tf.extractall(dest)
+        print(f"[ok] Extracted -> {dest}")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+# ============================================================
+#  CLIPBOARD
+# ============================================================
+@register("clip", "Copy a file's contents to clipboard.  Usage: clip <file>")
+def cmd_clip(args):
+    if not args:
+        print("[ERROR] Usage: clip <file>")
+        return
+    path = resolve_path(args[0])
+    if not os.path.isfile(path):
+        print(f"[ERROR] File not found: {path}")
+        return
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            data = f.read()
+        if is_windows():
+            subprocess.run("clip", input=data, text=True, shell=True)
+        elif is_android():
+            subprocess.run("termux-clipboard-set", input=data, text=True, shell=True)
+        else:
+            print("[ERROR] 'clip' works on Windows and Android only.")
+            return
+        print(f"[ok] Copied {len(data)} chars to clipboard")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("paste", "Show clipboard contents.")
+def cmd_paste(args):
+    try:
+        if is_windows():
+            out = _safe_run("powershell Get-Clipboard", timeout=10)
+        elif is_android():
+            out = _safe_run("termux-clipboard-get", timeout=10)
+        else:
+            print("[ERROR] 'paste' works on Windows and Android only.")
+            return
+        print(out if out.strip() else "[empty clipboard]")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+# ============================================================
 #  SYSTEM / UTILITY
 # ============================================================
 @register("echo", "Print a message.  Usage: echo <text>")
@@ -1329,6 +1467,78 @@ def cmd_uptime(args):
 
 
 # ============================================================
+#  SYSTEM TWEAKS
+# ============================================================
+@register("temp", "Show or clear temp files.  Usage: temp [clear]")
+def cmd_temp(args):
+    tmpdir = tempfile.gettempdir()
+    if args and args[0].lower() == "clear":
+        count = 0
+        for f in os.listdir(tmpdir):
+            try:
+                full = os.path.join(tmpdir, f)
+                if os.path.isfile(full):
+                    os.remove(full)
+                    count += 1
+                elif os.path.isdir(full):
+                    shutil.rmtree(full, ignore_errors=True)
+                    count += 1
+            except Exception:
+                pass
+        print(f"[ok] Cleared {count} item(s) from temp")
+        return
+    print(f"  Temp: {tmpdir}")
+    try:
+        files = os.listdir(tmpdir)
+        total = 0
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(tmpdir, f))
+            except Exception:
+                pass
+        print(f"  Files: {len(files)}")
+        print(f"  Size : {human_bytes(total)}")
+        print(f"  [tip] Run 'temp clear' to empty it.")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("proc", "Show quick process count.")
+def cmd_proc(args):
+    procs = get_processes()
+    print(f"  Running processes: {len(procs)}")
+
+
+@register("top5", "Show top 5 processes.")
+def cmd_top5(args):
+    cmd_top(["5"])
+
+
+@register("services", "List running services (Windows only).")
+def cmd_services(args):
+    if not is_windows():
+        print("[ERROR] 'services' is Windows-only.")
+        return
+    print(run_shell("sc query type= service state= all | findstr SERVICE_NAME"))
+
+
+@register("startup", "List startup programs (Windows only).")
+def cmd_startup(args):
+    if not is_windows():
+        print("[ERROR] 'startup' is Windows-only.")
+        return
+    print(run_shell('wmic startup get Caption,Command'))
+
+
+@register("drivers", "List installed drivers (Windows only).")
+def cmd_drivers(args):
+    if not is_windows():
+        print("[ERROR] 'drivers' is Windows-only.")
+        return
+    print(run_shell("driverquery"))
+
+
+# ============================================================
 #  TEXT TOOLS
 # ============================================================
 @register("sort", "Sort lines of a file.  Usage: sort <file>")
@@ -1425,6 +1635,232 @@ def cmd_lines(args):
 
 
 # ============================================================
+#  DEV / CODING TOOLS
+# ============================================================
+@register("py", "Run a Python file.  Usage: py <file.py> [args...]")
+def cmd_py(args):
+    if not args:
+        print("[ERROR] Usage: py <file.py> [args...]")
+        return
+    path = resolve_path(args[0])
+    if not os.path.isfile(path):
+        print(f"[ERROR] File not found: {path}")
+        return
+    script_args = args[1:]
+    cmd = f'python "{path}" ' + " ".join(script_args)
+    run_shell(cmd, live=True, timeout=300)
+
+
+@register("json", "Pretty-print a JSON file.  Usage: json <file>")
+def cmd_json(args):
+    if not args:
+        print("[ERROR] Usage: json <file>")
+        return
+    path = resolve_path(args[0])
+    if not os.path.isfile(path):
+        print(f"[ERROR] File not found: {path}")
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        print(json.dumps(data, indent=2))
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("hex", "Show file hex dump.  Usage: hex <file> [n]")
+def cmd_hex(args):
+    if not args:
+        print("[ERROR] Usage: hex <file> [n]")
+        return
+    path = resolve_path(args[0])
+    if not os.path.isfile(path):
+        print(f"[ERROR] File not found: {path}")
+        return
+    limit = int(args[1]) if len(args) > 1 and args[1].isdigit() else 256
+    try:
+        with open(path, "rb") as f:
+            data = f.read(limit)
+        for i in range(0, len(data), 16):
+            chunk = data[i:i+16]
+            hexpart = " ".join(f"{b:02x}" for b in chunk)
+            asciipart = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
+            print(f"  {i:08x}  {hexpart:<48}  {asciipart}")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("count", "Count files by extension.  Usage: count [path]")
+def cmd_count(args):
+    path = resolve_path(args[0]) if args else STATE["cwd"]
+    if not os.path.isdir(path):
+        print(f"[ERROR] Not a directory: {path}")
+        return
+    ext_count = {}
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            ext = os.path.splitext(f)[1].lower() or "(none)"
+            ext_count[ext] = ext_count.get(ext, 0) + 1
+    sorted_ext = sorted(ext_count.items(), key=lambda x: x[1], reverse=True)
+    print_header(f"File Counts — {path}")
+    for ext, count in sorted_ext[:30]:
+        print(f"  {count:>6}  {ext}")
+    print()
+
+
+@register("todo", "Find TODO/FIXME comments in code.  Usage: todo [path]")
+def cmd_todo(args):
+    path = resolve_path(args[0]) if args else STATE["cwd"]
+    count = 0
+    for root, dirs, files in os.walk(path):
+        dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", "node_modules", "venv")]
+        for f in files:
+            if not f.endswith((".py", ".js", ".ts", ".c", ".cpp", ".h", ".java", ".md", ".txt")):
+                continue
+            full = os.path.join(root, f)
+            try:
+                with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                    for i, line in enumerate(fh, 1):
+                        up = line.upper()
+                        if "TODO" in up or "FIXME" in up or "XXX" in up:
+                            print(f"  {full}:{i}  {line.strip()[:80]}")
+                            count += 1
+            except Exception:
+                pass
+    print(f"\n  {count} match(es)")
+
+
+# ============================================================
+#  BATCH OPERATIONS
+# ============================================================
+@register("findext", "Find all files with extension.  Usage: findext <ext>")
+def cmd_findext(args):
+    if not args:
+        print("[ERROR] Usage: findext <ext>")
+        return
+    ext = args[0]
+    if not ext.startswith("."):
+        ext = "." + ext
+    hits = 0
+    for root, dirs, files in os.walk(STATE["cwd"]):
+        for f in files:
+            if f.lower().endswith(ext.lower()):
+                print(os.path.join(root, f))
+                hits += 1
+                if hits >= 300:
+                    print("[...truncated]")
+                    return
+    if hits == 0:
+        print(f"[no {ext} files found]")
+
+
+@register("renameall", "Rename all files matching ext.  Usage: renameall <ext> <newname>")
+def cmd_renameall(args):
+    if len(args) < 2:
+        print("[ERROR] Usage: renameall <ext> <newname>")
+        return
+    ext = args[0]
+    if not ext.startswith("."):
+        ext = "." + ext
+    base = args[1]
+    count = 0
+    for f in sorted(os.listdir(STATE["cwd"])):
+        if f.lower().endswith(ext.lower()):
+            new = f"{base}_{count}{ext}"
+            try:
+                os.rename(os.path.join(STATE["cwd"], f), os.path.join(STATE["cwd"], new))
+                print(f"  {f} -> {new}")
+                count += 1
+            except Exception as e:
+                print(f"  [ERROR] {f}: {e}")
+    print(f"[ok] Renamed {count} file(s)")
+
+
+@register("empty", "Find empty files.  Usage: empty [path]")
+def cmd_empty(args):
+    path = resolve_path(args[0]) if args else STATE["cwd"]
+    count = 0
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            full = os.path.join(root, f)
+            try:
+                if os.path.getsize(full) == 0:
+                    print(f"  {full}")
+                    count += 1
+                    if count >= 100:
+                        print("[...truncated]")
+                        return
+            except Exception:
+                pass
+    print(f"\n  {count} empty file(s)")
+
+
+@register("dup", "Find duplicate files by name.  Usage: dup [path]")
+def cmd_dup(args):
+    path = resolve_path(args[0]) if args else STATE["cwd"]
+    by_name = {}
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            by_name.setdefault(f, []).append(os.path.join(root, f))
+    dups = {k: v for k, v in by_name.items() if len(v) > 1}
+    if not dups:
+        print("[no duplicates]")
+        return
+    for name, paths in dups.items():
+        print(f"  {name}:")
+        for p in paths:
+            print(f"    {p}")
+    print(f"\n  {len(dups)} duplicate name(s)")
+
+
+@register("bigfiles", "Find biggest files.  Usage: bigfiles [n]")
+def cmd_bigfiles(args):
+    n = int(args[0]) if args and args[0].isdigit() else 15
+    files = []
+    for root, dirs, fs in os.walk(STATE["cwd"]):
+        dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", "node_modules")]
+        for f in fs:
+            full = os.path.join(root, f)
+            try:
+                files.append((os.path.getsize(full), full))
+            except Exception:
+                pass
+    files.sort(reverse=True)
+    print_header(f"Top {n} biggest files")
+    for size, path in files[:n]:
+        print(f"  {human_bytes(size):>10}  {path}")
+    print()
+
+
+# ============================================================
+#  TIME / DATE EXTRAS
+# ============================================================
+@register("timestamp", "Show Unix timestamp.")
+def cmd_timestamp(args):
+    print(f"  {int(time.time())}")
+
+
+@register("calendar", "Show this month's calendar.")
+def cmd_calendar(args):
+    import calendar as _cal
+    now = datetime.datetime.now()
+    _cal.prmonth(now.year, now.month)
+
+
+@register("daysuntil", "Days until a date.  Usage: daysuntil YYYY-MM-DD")
+def cmd_daysuntil(args):
+    if not args:
+        print("[ERROR] Usage: daysuntil YYYY-MM-DD")
+        return
+    try:
+        target = datetime.datetime.strptime(args[0], "%Y-%m-%d")
+        delta = (target - datetime.datetime.now()).days
+        print(f"  {delta} day(s)")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+# ============================================================
 #  UTILITY / FUN
 # ============================================================
 @register("calc", "Calculate an expression.  Usage: calc <expr>")
@@ -1499,6 +1935,67 @@ def cmd_stopwatch(args):
         pass
     elapsed = time.time() - start
     print(f"  Elapsed: {elapsed:.2f} seconds")
+
+
+@register("cowsay", "Cow says something.  Usage: cowsay <text>")
+def cmd_cowsay(args):
+    text = " ".join(args) if args else "Hello from Eclipse Shell!"
+    border = "-" * (len(text) + 2)
+    print(f"  {border}")
+    print(f"  {text}")
+    print(f"  {border}")
+    print("        \\   ^__^")
+    print("         \\  (oo)\\_______")
+    print("            (__)\\       )\\/\\")
+    print("                ||----w |")
+    print("                ||     ||")
+
+
+@register("matrix", "Fake Matrix rain.")
+def cmd_matrix(args):
+    try:
+        for _ in range(20):
+            row = "".join(random.choice("01 ") for _ in range(60))
+            print(f"  {row}")
+            time.sleep(0.05)
+    except KeyboardInterrupt:
+        pass
+
+
+@register("dice", "Roll a die.  Usage: dice [sides]")
+def cmd_dice(args):
+    sides = int(args[0]) if args and args[0].isdigit() else 6
+    print(f"  [dice] {random.randint(1, sides)}")
+
+
+@register("coin", "Flip a coin.")
+def cmd_coin(args):
+    print(f"  {'HEADS' if random.randint(0, 1) == 0 else 'TAILS'}")
+
+
+@register("password", "Generate a password.  Usage: password [length]")
+def cmd_password(args):
+    length = int(args[0]) if args and args[0].isdigit() else 16
+    chars = string.ascii_letters + string.digits + "!@#$%^&*"
+    pw = "".join(random.choice(chars) for _ in range(length))
+    print(f"  {pw}")
+
+
+@register("meme", "Random message.")
+def cmd_meme(args):
+    msgs = [
+        "you got this",
+        "ship it",
+        "one more bug and then sleep",
+        "it works on my machine",
+        "delete node_modules and try again",
+        "have you tried turning it off and on again",
+        "80% done, 80% to go",
+        "git commit -m 'fixed stuff'",
+        "// TODO: fix this later (2026)",
+        "code is poetry. broken poetry.",
+    ]
+    print(f"  {random.choice(msgs)}")
 
 
 # ============================================================
@@ -1991,8 +2488,22 @@ def dispatch(line):
 
 
 def banner():
-    print_header("Eclipse Shell")
-    print(f"  Version {STATE['version']} ({STATE['status']})")
+    print(r"""
+ ███████╗ ██████╗██╗     ██╗██████╗ ███████╗███████╗
+ ██╔════╝██╔════╝██║     ██║██╔══██╗██╔════╝██╔════╝
+ █████╗  ██║     ██║     ██║██████╔╝███████╗█████╗
+ ██╔══╝  ██║     ██║     ██║██╔═══╝ ╚════██║██╔══╝
+ ███████╗╚██████╗███████╗██║██║     ███████║███████╗
+ ╚══════╝ ╚═════╝╚══════╝╚═╝╚═╝     ╚══════╝╚══════╝
+
+        ███████╗██╗  ██╗███████╗██╗     ██╗
+        ██╔════╝██║  ██║██╔════╝██║     ██║
+        ███████╗███████║█████╗  ██║     ██║
+        ╚════██║██╔══██║██╔══╝  ██║     ██║
+        ███████║██║  ██║███████╗███████╗███████╗
+        ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
+    """)
+    print(f"Eclipse Shell [Version {STATE['version']} ({STATE['status']})]")
     print(f"  Copyright (c) 2026 {STATE['author']}")
     print("  Type 'help' to see commands, 'license' for terms.")
     print("  Pipes: ls | grep py    Redirect: dir > files.txt")
