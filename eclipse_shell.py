@@ -23,6 +23,17 @@ import json
 import zipfile
 import tarfile
 import tempfile
+import re
+import urllib.parse
+import base64 as _b64
+
+try:
+    import readline
+except ImportError:
+    try:
+        import pyreadline3 as readline
+    except ImportError:
+        readline = None
 
 # ============================================================
 #  STATE
@@ -32,11 +43,12 @@ STATE = {
     "user": "eclipse",
     "host": "eclipse",
     "history": [],
-    "version": "0.4.0",
-    "status": "beta",
+    "version": "0.5.0",
+    "status": "indev",
     "author": "ilikehamandcheese11",
-    "youtube": "https://www.youtube.com/@ilikehamandcheese11",
-    "discord": "@ilikehamandcheese11",
+    "youtube": "@yourhandle",
+    "discord": "@yourname",
+    "aliases": {},
 }
 
 COMMANDS = {}
@@ -366,145 +378,23 @@ def find_program(name):
 LICENSE_TEXT = """Eclipse Shell — Proprietary License
 Copyright (c) 2026 ilikehamandcheese11. All rights reserved.
 
-================================================================
-                         TERMS OF USE
-================================================================
-
 1. OWNERSHIP
-
-   Eclipse Shell (the "Software"), including its source code,
-   documentation, branding, name, and all associated assets, is
-   the exclusive property of ilikehamandcheese11 (the "Author").
-   All rights not expressly granted in this License are reserved
-   by the Author.
-
-2. GRANT OF LICENSE
-
-   You are granted a limited, non-exclusive, non-transferable,
-   revocable license to:
-
-     a) Download and use the Software for personal, educational,
-        or internal business purposes.
-
-     b) Make a single backup copy of the Software for archival
-        purposes only, provided it retains this License.
-
+   Eclipse Shell is the exclusive property of ilikehamandcheese11.
+2. GRANT
+   Limited, non-exclusive, non-transferable license for personal use.
 3. RESTRICTIONS
-
-   You may NOT, under any circumstances:
-
-     a) Copy, redistribute, publish, upload, share, or otherwise
-        make the Software available to any third party, whether
-        for free or for a fee.
-
-     b) Sell, resell, sublicense, rent, lease, or otherwise
-        commercialize the Software.
-
-     c) Modify, adapt, translate, reverse-engineer, decompile,
-        disassemble, or create derivative works based on the
-        Software.
-
-     d) Remove, alter, or obscure any copyright notice,
-        attribution, license text, or branding contained in the
-        Software.
-
-     e) Claim authorship, ownership, or credit for the Software
-        or any part of it.
-
-     f) Rebrand, rename, or present the Software under a
-        different name or identity.
-
-     g) Use the Software as part of a larger product offered for
-        sale without explicit written permission from the Author.
-
-     h) Use the Software for any unlawful purpose or in violation
-        of applicable laws or regulations.
-
-4. THIRD-PARTY COMPONENTS
-
-   The Software may reference or invoke third-party programs,
-   libraries, or services. Use of those components is governed
-   by their own respective licenses. This License applies only
-   to Eclipse Shell itself.
-
-5. NO WARRANTY
-
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
-   NON-INFRINGEMENT. THE AUTHOR MAKES NO WARRANTY THAT THE SOFTWARE
-   WILL BE ERROR-FREE, SECURE, OR UNINTERRUPTED.
-
-6. LIMITATION OF LIABILITY
-
-   IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES,
-   OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
-   OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
-   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-   This includes, without limitation, any damages resulting from:
-
-     - Data loss or corruption
-     - System malfunction or hardware damage
-     - Unintended execution of commands
-     - Security breaches or unauthorized access
-     - Any indirect, incidental, or consequential damages
-
-   The user assumes full responsibility for any commands executed
-   through the Software and any consequences thereof.
-
-7. USER RESPONSIBILITY
-
-   Eclipse Shell is a command shell capable of executing system
-   commands. You acknowledge and agree that:
-
-     a) You are solely responsible for the commands you run.
-
-     b) You will not use the Software to harm, disrupt, or gain
-        unauthorized access to any system, network, or device.
-
-     c) You will comply with all applicable laws while using the
-        Software.
-
-8. TERMINATION
-
-   This License is effective until terminated. It will terminate
-   automatically without notice if you breach any of its terms.
-   Upon termination, you must immediately cease all use of the
-   Software and destroy all copies in your possession.
-
-   The Author reserves the right to revoke or modify this License
-   at any time, at their sole discretion.
-
-9. ENFORCEMENT
-
-   Unauthorized use, copying, distribution, or modification of
-   the Software constitutes copyright infringement and may result
-   in civil and/or criminal penalties under applicable law. The
-   Author reserves the right to pursue all available legal
-   remedies.
-
-10. CONTACT
-
-    For permissions, licensing inquiries, or commercial use
-    requests:
-
-      Author  : ilikehamandcheese11
-      YouTube : https://www.youtube.com/@ilikehamandcheese11
-      Discord : @ilikehamandcheese11
-
-================================================================
-   By using Eclipse Shell, you acknowledge that you have read,
-   understood, and agree to be bound by the terms of this License.
-   If you do not agree, you must not use the Software.
-================================================================
+   No redistribution, resale, modification, or rebranding.
+4. NO WARRANTY
+   Provided "AS IS". Author not liable for damages.
+5. CONTACT
+   YouTube: @yourhandle | Discord: @yourname
 """
 
 
 # ============================================================
-#  CORE
+#  CORE COMMANDS
 # ============================================================
-@register("help", "List all available commands.")
+@register("help", "List every registered command with a one-line description. Start here if you're new.")
 def cmd_help(args):
     print_header("Eclipse Shell - Command List")
     for name in sorted(COMMANDS.keys()):
@@ -512,7 +402,21 @@ def cmd_help(args):
     print()
 
 
-@register("about", "Show info about Eclipse Shell.")
+@register("man", "Show the full description for a single command. Usage: man <command>")
+def cmd_man(args):
+    if not args:
+        print("[ERROR] Usage: man <command>")
+        return
+    name = args[0].lower().rstrip("()")
+    if name not in COMMANDS:
+        print(f"[ERROR] Unknown command: {name}")
+        return
+    print_header(f"man {name}")
+    print(f"  {COMMANDS[name]['desc']}")
+    print()
+
+
+@register("about", "Show the version, author, license, and platform of Eclipse Shell.")
 def cmd_about(args):
     print_header("About Eclipse Shell")
     print(f"  Name     : Eclipse Shell")
@@ -522,41 +426,41 @@ def cmd_about(args):
     print(f"  Platform : {platform.system()} {platform.release()}")
     print(f"  Python   : {platform.python_version()}")
     print()
-    print("  Cross-platform shell for Windows, Linux, macOS, and Android.")
+    print("  Cross-platform terminal for Windows, Linux, macOS, and Android.")
     print()
     print(f"  Contact  : YouTube {STATE['youtube']}  |  Discord {STATE['discord']}")
     print()
 
 
-@register("license", "Display the license.")
+@register("license", "Print the full proprietary license text for Eclipse Shell.")
 def cmd_license(args):
     print(LICENSE_TEXT)
 
 
-@register("cls", "Clear screen.")
+@register("cls", "Clear the terminal screen and scrollback. Same as typing 'clear'.")
 def cmd_cls(args):
     if is_windows(): os.system("")
     sys.stdout.write("\033[2J\033[3J\033[H")
     sys.stdout.flush()
 
 
-@register("clear", "Clear screen (alias).")
+@register("clear", "Clear the screen — alias for 'cls'. Use this or 'cls', same thing.")
 def cmd_clear(args):
     cmd_cls(args)
 
 
-@register("exit", "Exit Eclipse Shell.")
+@register("exit", "Close Eclipse Shell and return to your terminal. Same as 'quit'.")
 def cmd_exit(args):
     print("Shutting down Eclipse Shell...")
     raise SystemExit(0)
 
 
-@register("quit", "Exit Eclipse Shell.")
+@register("quit", "Exit Eclipse Shell — alias for 'exit'. Same behavior, shorter to type.")
 def cmd_quit(args):
     cmd_exit(args)
 
 
-@register("history", "Show command history.")
+@register("history", "Print every command you've typed this session, numbered oldest to newest.")
 def cmd_history(args):
     if not STATE["history"]:
         print("[empty]")
@@ -565,22 +469,22 @@ def cmd_history(args):
         print(f"  {i:>4}  {h}")
 
 
-@register("version", "Show version.")
+@register("version", "Show the current Eclipse Shell version and development status.")
 def cmd_version(args):
     print(f"Eclipse Shell [Version {STATE['version']} {STATE['status']}]")
 
 
-@register("ver", "Show version (alias).")
+@register("ver", "Show the version — shorthand alias for 'version'.")
 def cmd_ver(args):
     cmd_version(args)
 
 
-@register("commands", "Count registered commands.")
+@register("commands", "Print how many commands are currently registered in Eclipse Shell.")
 def cmd_commands(args):
     print(f"  {len(COMMANDS)} commands registered")
 
 
-@register("allhelp", "Compact command grid.")
+@register("allhelp", "Print every command name in a compact grid, without descriptions.")
 def cmd_allhelp(args):
     names = sorted(COMMANDS.keys())
     print(f"  {len(names)} commands:")
@@ -588,31 +492,30 @@ def cmd_allhelp(args):
         print("  " + "  ".join(f"{n:<14}" for n in names[i:i+5]))
 
 
-@register("tips", "Random tip.")
+@register("tips", "Print a random tip about a lesser-known Eclipse Shell feature.")
 def cmd_tips(args):
     tips = ["Pipes: tasklist | grep chrome", "Redirect: dir > files.txt",
-            "Smart launch: start notepad", "Specs: sysinfo",
-            "Tree: tree", "Search: findext py", "Banner: ascii-banner HELLO",
-            "Progress: progressbar 5", "Spinner: spinner 3"]
+            "Smart launch: start notepad", "Full specs: sysinfo",
+            "Visual tree: tree", "Search files: findext py",
+            "ASCII banner: banner ECLIPSE", "Recall past commands: press up arrow"]
     print(f"  Tip: {random.choice(tips)}")
 
 
-@register("pkglist", "List commands by category.")
+@register("pkglist", "List all commands grouped by category (filesystem, network, dev, etc).")
 def cmd_pkglist(args):
     print_header("Categories")
     cats = {
-        "Filesystem": ["cd","pwd","dir","ls","type","cat","mkdir","rm","rmdir","find","grep","head","tail","wc","df","cp","mv","touch","write","append","rename","tree","size","lsd","lsf","countfiles","makedirs","pwdshort","where"],
+        "Filesystem": ["cd","pwd","dir","ls","type","cat","mkdir","rm","rmdir","find","grep","head","tail","wc","df","cp","mv","touch","write","append","rename","tree","size","lsd","lsf","countfiles","makedirs","pwdshort","which","fileinfo"],
         "System": ["sysinfo","os","cpu","mem","gpu","hostname","user","env","time","date","uptime","temp","proc","top5","services","startup","drivers","info"],
         "Process": ["tasklist","ps","top","taskinfo","kill","battery","storage","apps"],
-        "Network": ["wlan","ping","ip","ifconfig","netstat","route","arp","nslookup","tracert","localip","publicip","port","curl","wget"],
-        "Text": ["sort","uniq","rev","replace","lines","join","split","diff","upper","lower","swap"],
-        "Dev": ["py","json","hex","count","todo"],
-        "Batch": ["findext","empty","bigfiles"],
+        "Network": ["wlan","ping","ip","ifconfig","netstat","route","arp","nslookup","tracert","localip","publicip","port","curl","wget","netcheck"],
+        "Text": ["sort","uniq","rev","replace","lines","join","split","diff","upper","lower","swap","sed","regex","wc-lines"],
+        "Dev": ["py","json","hex","count","todo","jwt","url","epoch","uuid","uuid7"],
+        "Batch": ["findext","empty","bigfiles","du"],
         "Archive": ["zip","unzip","tar","untar","clip","paste"],
-        "Utility": ["calc","random","uuid","hash","base64","now","stopwatch","password","unitconvert","bmi","avg","prime","factors","timer","morse","caesar","roll","rps"],
-        "Time": ["timestamp","calendar","daysuntil"],
-        "Shell": ["help","about","license","version","ver","history","call","commands","allhelp","tips","clrhist","last","repeat","wait"],
-        "Fun": ["cowsay","matrix","meme","fortune","quote","dice","coin","luck","shuffle","pick","toss","beep","progressbar","spinner","ascii-banner","challenge"],
+        "Utility": ["calc","random","hash","base64","now","stopwatch","password","unitconvert","bmi","avg","prime","factors","timer","morse","caesar","roll","rps","watch","bench"],
+        "Shell": ["help","man","about","license","version","ver","history","call","commands","allhelp","tips","clrhist","last","repeat","wait","alias","unalias"],
+        "Fun": ["cowsay","matrix","meme","fortune","quote","dice","coin","luck","shuffle","pick","beep","progressbar","spinner","banner","challenge"],
         "Power": ["shutdown","reboot"],
     }
     for cat, cmds in cats.items():
@@ -622,7 +525,7 @@ def cmd_pkglist(args):
     print()
 
 
-@register("info", "Compact system summary.")
+@register("info", "Print a compact system summary — user, OS, CPU, RAM, and cwd at a glance.")
 def cmd_info(args):
     specs = collect_specs()
     print_header("Quick Info")
@@ -637,18 +540,18 @@ def cmd_info(args):
     print()
 
 
-@register("clrhist", "Clear history.")
+@register("clrhist", "Wipe the in-memory command history for this session. Does not save to disk.")
 def cmd_clrhist(args):
     STATE["history"].clear()
     print("[ok] History cleared")
 
 
-@register("last", "Show last command.")
+@register("last", "Print the last command you ran — handy when you forget what you just typed.")
 def cmd_last(args):
     print(f"  {STATE['history'][-1]}" if STATE["history"] else "[empty]")
 
 
-@register("repeat", "Repeat a command N times.")
+@register("repeat", "Run a command multiple times in a row. Usage: repeat <n> <command>")
 def cmd_repeat(args):
     if len(args) < 2:
         print("[ERROR] Usage: repeat <n> <command>")
@@ -662,7 +565,7 @@ def cmd_repeat(args):
         dispatch(" ".join(args[1:]))
 
 
-@register("wait", "Wait N seconds.")
+@register("wait", "Pause execution for N seconds. Ctrl+C cancels. Usage: wait <seconds>")
 def cmd_wait(args):
     if not args:
         print("[ERROR] Usage: wait <seconds>")
@@ -675,10 +578,347 @@ def cmd_wait(args):
         print("[cancelled]")
 
 
+@register("alias", "Create a shortcut for a command. Usage: alias <name>=<command>. Run 'alias' alone to list all.")
+def cmd_alias(args):
+    if not args:
+        if not STATE["aliases"]:
+            print("[no aliases]")
+            return
+        for k, v in STATE["aliases"].items():
+            print(f"  {k} = {v}")
+        return
+    text = " ".join(args)
+    if "=" not in text:
+        print("[ERROR] Usage: alias name=command")
+        return
+    name, value = text.split("=", 1)
+    name = name.strip()
+    value = value.strip().strip('"').strip("'")
+    if not name or not value:
+        print("[ERROR] Missing name or value.")
+        return
+    STATE["aliases"][name] = value
+    print(f"[alias] {name} = {value}")
+
+
+@register("unalias", "Remove a previously created alias. Usage: unalias <name>")
+def cmd_unalias(args):
+    if not args:
+        print("[ERROR] Usage: unalias <name>")
+        return
+    name = args[0]
+    if name in STATE["aliases"]:
+        del STATE["aliases"][name]
+        print(f"[alias] removed {name}")
+    else:
+        print(f"[ERROR] No alias: {name}")
+
+
+@register("which", "Find where a command or file lives — checks Eclipse builtins, PATH, then cwd.")
+def cmd_which(args):
+    if not args:
+        print("[ERROR] Usage: which <name>")
+        return
+    name = args[0]
+    if name in COMMANDS:
+        print(f"  {name}: Eclipse Shell builtin")
+        return
+    found = shutil.which(name)
+    if found:
+        print(f"  {found}")
+        return
+    local = resolve_path(name)
+    if os.path.exists(local):
+        print(f"  {local}")
+        return
+    print(f"[not found] {name}")
+
+
+@register("watch", "Re-run a command on an interval, refreshing the screen. Usage: watch <secs> <cmd>. Ctrl+C stops.")
+def cmd_watch(args):
+    if len(args) < 2:
+        print("[ERROR] Usage: watch <secs> <command>")
+        return
+    try: secs = float(args[0])
+    except ValueError:
+        print("[ERROR] secs must be a number.")
+        return
+    cmd = " ".join(args[1:])
+    try:
+        while True:
+            os.system("cls" if is_windows() else "clear")
+            print(f"[watch] every {secs}s: {cmd}")
+            print("-" * 50)
+            dispatch(cmd)
+            time.sleep(secs)
+    except KeyboardInterrupt:
+        print("\n[watch] stopped")
+
+
+@register("bench", "Run a quick CPU benchmark using 500k multiplications. Score = ops per second.")
+def cmd_bench(args):
+    print("[bench] running...")
+    start = time.time()
+    total = 0
+    for i in range(1, 500000):
+        total += i * i
+    elapsed = time.time() - start
+    score = int(500000 / elapsed)
+    print(f"  Time   : {elapsed:.3f}s")
+    print(f"  Score  : {score} (higher = faster)")
+
+
+@register("banner", "Print big ASCII block letters. Supports A-Z, 0-9, space. Usage: banner <text>")
+def cmd_banner(args):
+    if not args:
+        print("[ERROR] Usage: banner <text>")
+        return
+    text = " ".join(args).upper()
+    font = {
+        "A": ["  A  ", " A A ", "AAAAA", "A   A", "A   A"],
+        "B": ["BBBB ", "B   B", "BBBB ", "B   B", "BBBB "],
+        "C": [" CCCC", "C    ", "C    ", "C    ", " CCCC"],
+        "D": ["DDDD ", "D   D", "D   D", "D   D", "DDDD "],
+        "E": ["EEEEE", "E    ", "EEE  ", "E    ", "EEEEE"],
+        "F": ["FFFFF", "F    ", "FFF  ", "F    ", "F    "],
+        "G": [" GGGG", "G    ", "G  GG", "G   G", " GGG "],
+        "H": ["H   H", "H   H", "HHHHH", "H   H", "H   H"],
+        "I": ["IIIII", "  I  ", "  I  ", "  I  ", "IIIII"],
+        "J": ["    J", "    J", "    J", "J   J", " JJJ "],
+        "K": ["K   K", "K  K ", "KKK  ", "K  K ", "K   K"],
+        "L": ["L    ", "L    ", "L    ", "L    ", "LLLLL"],
+        "M": ["M   M", "MM MM", "M M M", "M   M", "M   M"],
+        "N": ["N   N", "NN  N", "N N N", "N  NN", "N   N"],
+        "O": [" OOO ", "O   O", "O   O", "O   O", " OOO "],
+        "P": ["PPPP ", "P   P", "PPPP ", "P    ", "P    "],
+        "Q": [" QQQ ", "Q   Q", "Q   Q", "Q  Q ", " QQ Q"],
+        "R": ["RRRR ", "R   R", "RRRR ", "R R  ", "R  RR"],
+        "S": [" SSSS", "S    ", " SSS ", "    S", "SSSS "],
+        "T": ["TTTTT", "  T  ", "  T  ", "  T  ", "  T  "],
+        "U": ["U   U", "U   U", "U   U", "U   U", " UUU "],
+        "V": ["V   V", "V   V", "V   V", " V V ", "  V  "],
+        "W": ["W   W", "W   W", "W W W", "WW WW", "W   W"],
+        "X": ["X   X", " X X ", "  X  ", " X X ", "X   X"],
+        "Y": ["Y   Y", " Y Y ", "  Y  ", "  Y  ", "  Y  "],
+        "Z": ["ZZZZZ", "   Z ", "  Z  ", " Z   ", "ZZZZZ"],
+        " ": ["     ", "     ", "     ", "     ", "     "],
+        "0": [" 000 ", "0   0", "0   0", "0   0", " 000 "],
+        "1": ["  1  ", " 11  ", "  1  ", "  1  ", "11111"],
+        "2": [" 222 ", "2   2", "   2 ", "  2  ", "22222"],
+        "3": [" 333 ", "3   3", "  33 ", "3   3", " 333 "],
+        "4": ["4   4", "4   4", "44444", "    4", "    4"],
+        "5": ["55555", "5    ", "5555 ", "    5", "5555 "],
+        "6": [" 666 ", "6    ", "6666 ", "6   6", " 666 "],
+        "7": ["77777", "    7", "   7 ", "  7  ", " 7   "],
+        "8": [" 888 ", "8   8", " 888 ", "8   8", " 888 "],
+        "9": [" 999 ", "9   9", " 9999", "    9", " 999 "],
+    }
+    for row in range(5):
+        line = ""
+        for ch in text:
+            line += font.get(ch, ["?????"] * 5)[row] + " "
+        print(line)
+
+
+@register("epoch", "Convert a Unix timestamp to a date, or a YYYY-MM-DD date to a timestamp. No args = now.")
+def cmd_epoch(args):
+    if not args:
+        print(f"  now: {int(time.time())}")
+        return
+    try:
+        ts = int(args[0])
+        dt = datetime.datetime.fromtimestamp(ts)
+        print(f"  {ts} -> {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+    except ValueError:
+        try:
+            dt = datetime.datetime.strptime(args[0], "%Y-%m-%d")
+            print(f"  {args[0]} -> {int(dt.timestamp())}")
+        except Exception as e:
+            print(f"[ERROR] {e}")
+
+
+@register("uuid7", "Generate a time-sortable UUID — ordered by creation time (like RFC 9562 UUIDv7).")
+def cmd_uuid7(args):
+    import uuid as _u
+    ts = int(time.time() * 1000)
+    rand = _u.uuid4().hex[8:]
+    print(f"  {ts:012x}-{rand[:4]}-{rand[4:8]}-{rand[8:12]}-{rand[12:24]}")
+
+
+@register("url", "URL-encode text, or decode with -d. Usage: url [-d] <text>")
+def cmd_url(args):
+    if not args:
+        print("[ERROR] Usage: url [-d] <text>")
+        return
+    decode = args[0] == "-d"
+    text = " ".join(args[1:] if decode else args)
+    try:
+        if decode:
+            print(f"  {urllib.parse.unquote(text)}")
+        else:
+            print(f"  {urllib.parse.quote(text)}")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("jwt", "Decode the header and payload of a JWT. No signature verification. Usage: jwt <token>")
+def cmd_jwt(args):
+    if not args:
+        print("[ERROR] Usage: jwt <token>")
+        return
+    try:
+        parts = args[0].split(".")
+        if len(parts) < 2:
+            print("[ERROR] Not a JWT.")
+            return
+        def b64pad(s):
+            return s + "=" * (-len(s) % 4)
+        header = json.loads(_b64.urlsafe_b64decode(b64pad(parts[0])))
+        payload = json.loads(_b64.urlsafe_b64decode(b64pad(parts[1])))
+        print("  Header:")
+        print("    " + json.dumps(header, indent=2).replace("\n", "\n    "))
+        print("  Payload:")
+        print("    " + json.dumps(payload, indent=2).replace("\n", "\n    "))
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("regex", "Test a regular expression against text and show matches/groups. Usage: regex <pattern> <text>")
+def cmd_regex(args):
+    if len(args) < 2:
+        print("[ERROR] Usage: regex <pattern> <text>")
+        return
+    try:
+        pattern = args[0]
+        text = " ".join(args[1:])
+        m = re.search(pattern, text)
+        if m:
+            print(f"  match: '{m.group()}'")
+            for i, g in enumerate(m.groups(), 1):
+                print(f"  group {i}: {g}")
+        else:
+            print("  no match")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("sed", "In-place regex find/replace on a file. Usage: sed <file> <pattern> <replacement>")
+def cmd_sed(args):
+    if len(args) < 3:
+        print("[ERROR] Usage: sed <file> <pattern> <replacement>")
+        return
+    path = resolve_path(args[0])
+    if not os.path.isfile(path):
+        print(f"[ERROR] File not found: {path}")
+        return
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            data = f.read()
+        new_data, count = re.subn(args[1], args[2], data)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new_data)
+        print(f"[ok] replaced {count} occurrence(s)")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("wc-lines", "Count lines across every code/text file in a directory. Usage: wc-lines [path]")
+def cmd_wc_lines(args):
+    target = resolve_path(args[0]) if args else STATE["cwd"]
+    if not os.path.isdir(target):
+        print(f"[ERROR] Not a directory: {target}")
+        return
+    total = 0
+    for root, dirs, files in os.walk(target):
+        for f in files:
+            if not f.endswith((".py",".txt",".md",".js",".ts",".c",".cpp",".h")):
+                continue
+            full = os.path.join(root, f)
+            try:
+                with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                    n = sum(1 for _ in fh)
+                total += n
+                print(f"  {n:>6}  {full}")
+            except Exception: pass
+    print(f"\n  Total: {total} lines")
+
+
+@register("du", "Show the total size of a directory recursively, with file count. Usage: du [path]")
+def cmd_du(args):
+    path = resolve_path(args[0]) if args else STATE["cwd"]
+    if not os.path.exists(path):
+        print(f"[ERROR] Not found: {path}")
+        return
+    if os.path.isfile(path):
+        print(f"{human_bytes(os.path.getsize(path))}  {path}")
+        return
+    total = 0; count = 0
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+                count += 1
+            except Exception: pass
+    print(f"{human_bytes(total)}  {count} files  {path}")
+
+
+@register("fileinfo", "Identify a file's type by its magic bytes (PNG, JPEG, ZIP, exe, ELF, etc).")
+def cmd_fileinfo(args):
+    if not args:
+        print("[ERROR] Usage: fileinfo <file>")
+        return
+    path = resolve_path(args[0])
+    if not os.path.isfile(path):
+        print(f"[ERROR] File not found: {path}")
+        return
+    try:
+        with open(path, "rb") as f:
+            head = f.read(16)
+        sigs = {
+            b"\x89PNG": "PNG image",
+            b"\xff\xd8\xff": "JPEG image",
+            b"GIF8": "GIF image",
+            b"PK\x03\x04": "ZIP archive",
+            b"%PDF": "PDF document",
+            b"MZ": "Windows executable",
+            b"\x7fELF": "Linux executable",
+            b"ID3": "MP3 audio",
+            b"OggS": "OGG media",
+            b"RIFF": "RIFF media",
+        }
+        kind = "unknown"
+        for sig, name in sigs.items():
+            if head.startswith(sig):
+                kind = name
+                break
+        size = os.path.getsize(path)
+        print(f"  Path  : {path}")
+        print(f"  Type  : {kind}")
+        print(f"  Size  : {human_bytes(size)}")
+        print(f"  Magic : {head[:8].hex()}")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+
+
+@register("netcheck", "Run DNS lookup + ping on a host in one shot. Great before gaming. Usage: netcheck <host>")
+def cmd_netcheck(args):
+    if not args:
+        print("[ERROR] Usage: netcheck <host>")
+        return
+    host = args[0]
+    print(f"[netcheck] {host}")
+    print("-" * 50)
+    print("[DNS]")
+    print(_safe_run(f"nslookup {host}", timeout=10) or "[no output]")
+    print("[PING]")
+    flag = "-n" if is_windows() else "-c"
+    print(_safe_run(f"ping {flag} 2 {host}", timeout=15) or "[no output]")
+
+
 # ============================================================
 #  FILESYSTEM
 # ============================================================
-@register("cd", "Change directory.")
+@register("cd", "Change the current working directory. Usage: cd <path>. Run 'cd' alone to see the cwd.")
 def cmd_cd(args):
     if not args:
         print(STATE["cwd"]); return
@@ -687,32 +927,17 @@ def cmd_cd(args):
     else: print(f"[ERROR] Not a directory: {t}")
 
 
-@register("pwd", "Print working directory.")
+@register("pwd", "Print the full absolute path of the current working directory.")
 def cmd_pwd(args):
     print(STATE["cwd"])
 
 
-@register("pwdshort", "Just the folder name.")
+@register("pwdshort", "Print just the name of the current folder, not the full path.")
 def cmd_pwdshort(args):
     print(os.path.basename(STATE["cwd"]) or STATE["cwd"])
 
 
-@register("where", "Locate command or file.")
-def cmd_where(args):
-    if not args:
-        print("[ERROR] Usage: where <name>"); return
-    name = args[0]
-    if name in COMMANDS:
-        print(f"  command : {name}\n  desc    : {COMMANDS[name]['desc']}")
-        return
-    found = shutil.which(name)
-    if found: print(f"  {found}"); return
-    local = resolve_path(name)
-    if os.path.exists(local): print(f"  {local}"); return
-    print(f"[not found] {name}")
-
-
-@register("dir", "List directory.")
+@register("dir", "List the contents of the current or given directory with <DIR> tags.")
 def cmd_dir(args):
     t = resolve_path(args[0]) if args else STATE["cwd"]
     if not os.path.isdir(t): print(f"[ERROR] Not a dir: {t}"); return
@@ -724,7 +949,7 @@ def cmd_dir(args):
         print(f"  {tag}  {e}")
 
 
-@register("ls", "List (Unix).")
+@register("ls", "List directory contents Unix-style — directories get a trailing slash.")
 def cmd_ls(args):
     t = resolve_path(args[0]) if args else STATE["cwd"]
     if not os.path.isdir(t): print(f"[ERROR] Not a dir: {t}"); return
@@ -732,7 +957,7 @@ def cmd_ls(args):
         print(e + ("/" if os.path.isdir(os.path.join(t, e)) else ""))
 
 
-@register("lsd", "List dirs only.")
+@register("lsd", "List only subdirectories in the current folder, one per line with trailing slash.")
 def cmd_lsd(args):
     t = resolve_path(args[0]) if args else STATE["cwd"]
     dirs = [d for d in sorted(os.listdir(t)) if os.path.isdir(os.path.join(t, d))]
@@ -740,7 +965,7 @@ def cmd_lsd(args):
     if not dirs: print("[no directories]")
 
 
-@register("lsf", "List files only.")
+@register("lsf", "List only files (no folders), showing each file's size in human-readable format.")
 def cmd_lsf(args):
     t = resolve_path(args[0]) if args else STATE["cwd"]
     files = [f for f in sorted(os.listdir(t)) if os.path.isfile(os.path.join(t, f))]
@@ -748,7 +973,7 @@ def cmd_lsf(args):
     if not files: print("[no files]")
 
 
-@register("countfiles", "Count files and dirs.")
+@register("countfiles", "Count how many files and folders exist in a directory, recursively.")
 def cmd_countfiles(args):
     t = resolve_path(args[0]) if args else STATE["cwd"]
     nf = nd = 0
@@ -757,7 +982,7 @@ def cmd_countfiles(args):
     print(f"  Files: {nf}\n  Dirs : {nd}")
 
 
-@register("makedirs", "Create multiple dirs.")
+@register("makedirs", "Create multiple directories at once. Usage: makedirs <dir1> <dir2> ...")
 def cmd_makedirs(args):
     if not args: print("[ERROR] Usage: makedirs <d1> <d2>..."); return
     for d in args:
@@ -767,7 +992,7 @@ def cmd_makedirs(args):
         except Exception as e: print(f"  [ERROR] {d}: {e}")
 
 
-@register("type", "Print file.")
+@register("type", "Print the full contents of a text file to the screen. Usage: type <file>")
 def cmd_type(args):
     if not args: print("[ERROR] Missing file."); return
     p = resolve_path(args[0])
@@ -777,11 +1002,11 @@ def cmd_type(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("cat", "Print file (alias).")
+@register("cat", "Print the contents of a file — shorthand alias for 'type'.")
 def cmd_cat(args): cmd_type(args)
 
 
-@register("mkdir", "Create directory.")
+@register("mkdir", "Create a new directory. Creates parent directories if missing. Usage: mkdir <name>")
 def cmd_mkdir(args):
     if not args: print("[ERROR] Usage: mkdir <name>"); return
     try:
@@ -790,7 +1015,7 @@ def cmd_mkdir(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("rm", "Remove file.")
+@register("rm", "Delete a single file. Refuses to delete directories — use rmdir for that.")
 def cmd_rm(args):
     if not args: print("[ERROR] Usage: rm <file>"); return
     p = resolve_path(args[0])
@@ -801,7 +1026,7 @@ def cmd_rm(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("rmdir", "Remove empty dir.")
+@register("rmdir", "Delete an empty directory. Fails if the folder still has contents inside.")
 def cmd_rmdir(args):
     if not args: print("[ERROR] Usage: rmdir <dir>"); return
     try:
@@ -810,7 +1035,7 @@ def cmd_rmdir(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("find", "Find files.")
+@register("find", "Recursively search for files whose name contains the given text. Usage: find <name>")
 def cmd_find(args):
     if not args: print("[ERROR] Usage: find <name>"); return
     needle = args[0].lower(); hits = 0
@@ -822,7 +1047,7 @@ def cmd_find(args):
     if hits == 0: print("[no matches]")
 
 
-@register("grep", "Search file.")
+@register("grep", "Search for a text pattern inside a file and print matching lines with line numbers.")
 def cmd_grep(args):
     if len(args) < 2: print("[ERROR] Usage: grep <pat> <file>"); return
     p = resolve_path(args[1])
@@ -834,7 +1059,7 @@ def cmd_grep(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("head", "First lines.")
+@register("head", "Print the first N lines of a file (default 10). Usage: head <file> [n]")
 def cmd_head(args):
     if not args: print("[ERROR] Usage: head <file> [n]"); return
     n = int(args[1]) if len(args) > 1 and args[1].isdigit() else 10
@@ -846,7 +1071,7 @@ def cmd_head(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("tail", "Last lines.")
+@register("tail", "Print the last N lines of a file (default 10). Usage: tail <file> [n]")
 def cmd_tail(args):
     if not args: print("[ERROR] Usage: tail <file> [n]"); return
     n = int(args[1]) if len(args) > 1 and args[1].isdigit() else 10
@@ -857,7 +1082,7 @@ def cmd_tail(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("wc", "Count lines/words/chars.")
+@register("wc", "Count lines, words, and characters in a file. Output: <lines> <words> <chars> <path>")
 def cmd_wc(args):
     if not args: print("[ERROR] Usage: wc <file>"); return
     p = resolve_path(args[0])
@@ -868,12 +1093,12 @@ def cmd_wc(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("df", "Disk usage.")
+@register("df", "Show disk usage for all drives — total size and free space per volume.")
 def cmd_df(args):
     print(run_shell("wmic logicaldisk get size,freespace,caption" if is_windows() else "df -h"))
 
 
-@register("cp", "Copy file.")
+@register("cp", "Copy a file or folder to a new location. Usage: cp <src> <dst>")
 def cmd_cp(args):
     if len(args) < 2: print("[ERROR] Usage: cp <src> <dst>"); return
     src = resolve_path(args[0]); dst = resolve_path(args[1])
@@ -885,7 +1110,7 @@ def cmd_cp(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("mv", "Move/rename.")
+@register("mv", "Move or rename a file or folder. Usage: mv <src> <dst>")
 def cmd_mv(args):
     if len(args) < 2: print("[ERROR] Usage: mv <src> <dst>"); return
     src = resolve_path(args[0]); dst = resolve_path(args[1])
@@ -895,7 +1120,7 @@ def cmd_mv(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("touch", "Create empty file.")
+@register("touch", "Create an empty file if it doesn't exist, or update its timestamp if it does.")
 def cmd_touch(args):
     if not args: print("[ERROR] Usage: touch <file>"); return
     try:
@@ -904,7 +1129,7 @@ def cmd_touch(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("write", "Write to file.")
+@register("write", "Overwrite a file with the given text. Usage: write <file> <text...>")
 def cmd_write(args):
     if len(args) < 2: print("[ERROR] Usage: write <file> <text...>"); return
     try:
@@ -914,7 +1139,7 @@ def cmd_write(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("append", "Append to file.")
+@register("append", "Add a line of text to the end of a file, preserving existing content.")
 def cmd_append(args):
     if len(args) < 2: print("[ERROR] Usage: append <file> <text...>"); return
     try:
@@ -924,11 +1149,11 @@ def cmd_append(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("rename", "Rename file.")
+@register("rename", "Rename a file or move it — same as 'mv'.")
 def cmd_rename(args): cmd_mv(args)
 
 
-@register("tree", "Directory tree.")
+@register("tree", "Display the folder structure as a tree. Usage: tree [path] [depth]. Default depth: 3.")
 def cmd_tree(args):
     root = resolve_path(args[0]) if args else STATE["cwd"]
     max_depth = int(args[1]) if len(args) > 1 and args[1].isdigit() else 3
@@ -948,7 +1173,7 @@ def cmd_tree(args):
     print(root); walk(root, "", 1)
 
 
-@register("size", "Size of path.")
+@register("size", "Print the total size of a file or folder in bytes/KB/MB/GB. Usage: size <path>")
 def cmd_size(args):
     if not args: print("[ERROR] Usage: size <path>"); return
     p = resolve_path(args[0])
@@ -965,7 +1190,7 @@ def cmd_size(args):
 # ============================================================
 #  TEXT
 # ============================================================
-@register("sort", "Sort lines.")
+@register("sort", "Sort the lines of a file alphabetically and print them. Usage: sort <file>")
 def cmd_sort(args):
     if not args: print("[ERROR] Usage: sort <file>"); return
     try:
@@ -974,7 +1199,7 @@ def cmd_sort(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("uniq", "Remove dupes.")
+@register("uniq", "Print only the unique lines of a file — duplicate lines are dropped.")
 def cmd_uniq(args):
     if not args: print("[ERROR] Usage: uniq <file>"); return
     try:
@@ -986,7 +1211,7 @@ def cmd_uniq(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("rev", "Reverse each line.")
+@register("rev", "Print each line of a file reversed character-by-character.")
 def cmd_rev(args):
     if not args: print("[ERROR] Usage: rev <file>"); return
     try:
@@ -995,7 +1220,7 @@ def cmd_rev(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("replace", "Replace text.")
+@register("replace", "Replace every occurrence of a text string in a file with another string.")
 def cmd_replace(args):
     if len(args) < 3: print("[ERROR] Usage: replace <file> <old> <new>"); return
     p = resolve_path(args[0])
@@ -1007,7 +1232,7 @@ def cmd_replace(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("lines", "Count lines.")
+@register("lines", "Count just the number of lines in a file. Usage: lines <file>")
 def cmd_lines(args):
     if not args: print("[ERROR] Usage: lines <file>"); return
     try:
@@ -1016,7 +1241,7 @@ def cmd_lines(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("join", "Join lines.")
+@register("join", "Join all lines of a file into a single line using a separator. Usage: join <file> <sep>")
 def cmd_join(args):
     if len(args) < 2: print("[ERROR] Usage: join <file> <sep>"); return
     try:
@@ -1025,7 +1250,7 @@ def cmd_join(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("split", "Split file.")
+@register("split", "Split a file into chunks of N lines each. Usage: split <file> <n>")
 def cmd_split(args):
     if len(args) < 2: print("[ERROR] Usage: split <file> <n>"); return
     p = resolve_path(args[0])
@@ -1040,7 +1265,7 @@ def cmd_split(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("upper", "Uppercase.")
+@register("upper", "Print the contents of a file converted entirely to UPPERCASE.")
 def cmd_upper(args):
     if not args: print("[ERROR] Usage: upper <file>"); return
     try:
@@ -1049,7 +1274,7 @@ def cmd_upper(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("lower", "Lowercase.")
+@register("lower", "Print the contents of a file converted entirely to lowercase.")
 def cmd_lower(args):
     if not args: print("[ERROR] Usage: lower <file>"); return
     try:
@@ -1058,7 +1283,7 @@ def cmd_lower(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("swap", "Swap two files.")
+@register("swap", "Swap the names and contents of two files. Usage: swap <file1> <file2>")
 def cmd_swap(args):
     if len(args) < 2: print("[ERROR] Usage: swap <f1> <f2>"); return
     a = resolve_path(args[0]); b = resolve_path(args[1])
@@ -1070,7 +1295,7 @@ def cmd_swap(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("diff", "Compare two files.")
+@register("diff", "Compare two files line-by-line and highlight every difference.")
 def cmd_diff(args):
     if len(args) < 2: print("[ERROR] Usage: diff <f1> <f2>"); return
     try:
@@ -1092,7 +1317,7 @@ def cmd_diff(args):
 # ============================================================
 #  ARCHIVE / CLIPBOARD
 # ============================================================
-@register("zip", "Zip file.")
+@register("zip", "Compress a file or folder into a .zip archive. Usage: zip <src> [out.zip]")
 def cmd_zip(args):
     if not args: print("[ERROR] Usage: zip <src> [out.zip]"); return
     src = resolve_path(args[0])
@@ -1110,7 +1335,7 @@ def cmd_zip(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("unzip", "Extract zip.")
+@register("unzip", "Extract the contents of a .zip archive into a folder.")
 def cmd_unzip(args):
     if not args: print("[ERROR] Usage: unzip <file.zip> [dest]"); return
     src = resolve_path(args[0])
@@ -1122,7 +1347,7 @@ def cmd_unzip(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("tar", "Create tar.gz.")
+@register("tar", "Create a compressed .tar.gz archive of a file or folder. Usage: tar <src> [out.tar.gz]")
 def cmd_tar(args):
     if not args: print("[ERROR] Usage: tar <src> [out.tar.gz]"); return
     src = resolve_path(args[0])
@@ -1133,7 +1358,7 @@ def cmd_tar(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("untar", "Extract tar.gz.")
+@register("untar", "Extract the contents of a .tar.gz archive. Usage: untar <file.tar.gz> [dest]")
 def cmd_untar(args):
     if not args: print("[ERROR] Usage: untar <file.tar.gz> [dest]"); return
     dest = resolve_path(args[1]) if len(args) > 1 else STATE["cwd"]
@@ -1143,7 +1368,7 @@ def cmd_untar(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("clip", "Copy to clipboard.")
+@register("clip", "Copy the contents of a file to the system clipboard (Windows/Android).")
 def cmd_clip(args):
     if not args: print("[ERROR] Usage: clip <file>"); return
     p = resolve_path(args[0])
@@ -1157,7 +1382,7 @@ def cmd_clip(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("paste", "Show clipboard.")
+@register("paste", "Print the current contents of the system clipboard (Windows/Android).")
 def cmd_paste(args):
     if is_windows(): out = _safe_run("powershell Get-Clipboard", timeout=10)
     elif is_android(): out = _safe_run("termux-clipboard-get", timeout=10)
@@ -1168,15 +1393,15 @@ def cmd_paste(args):
 # ============================================================
 #  SYSTEM
 # ============================================================
-@register("echo", "Print text.")
+@register("echo", "Print whatever text you give it. Usage: echo <text>")
 def cmd_echo(args): print(" ".join(args))
 
 
-@register("whoami", "Current user.")
+@register("whoami", "Print the currently logged-in Eclipse Shell user.")
 def cmd_whoami(args): print(STATE["user"])
 
 
-@register("sysinfo", "Hardware specs.")
+@register("sysinfo", "Show detailed hardware specs — CPU, RAM, GPU/VRAM, disks, motherboard.")
 def cmd_sysinfo(args):
     specs = collect_specs()
     print_header("System Information")
@@ -1212,7 +1437,7 @@ def cmd_sysinfo(args):
     print()
 
 
-@register("os", "OS info.")
+@register("os", "Show the OS name, version, kernel release, architecture, and hostname.")
 def cmd_os(args):
     print_header("Operating System")
     print(f"  System  : {platform.system()}")
@@ -1223,52 +1448,52 @@ def cmd_os(args):
     print()
 
 
-@register("cpu", "CPU info.")
+@register("cpu", "Show CPU model, core count, thread count, and base/boost clock speed.")
 def cmd_cpu(args):
     print(run_shell("wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed /format:list" if is_windows() else "cat /proc/cpuinfo | head -30"))
 
 
-@register("mem", "Memory.")
+@register("mem", "Show memory usage — total RAM, free RAM, and percent used.")
 def cmd_mem(args):
     print(run_shell("wmic OS get FreePhysicalMemory,TotalVisibleMemorySize /format:list" if is_windows() else "free -h"))
 
 
-@register("gpu", "GPU info.")
+@register("gpu", "Show every GPU installed in the system and its current driver.")
 def cmd_gpu(args):
     print(run_shell("wmic path win32_VideoController get Name /format:list" if is_windows() else "lspci | grep -i vga"))
 
 
-@register("hostname", "Show/set hostname.")
+@register("hostname", "Print the current hostname, or set a new one for the prompt. Usage: hostname [name]")
 def cmd_hostname(args):
     if args:
         STATE["host"] = args[0]; print(f"[host] -> {args[0]}")
     else: print(platform.node())
 
 
-@register("user", "Current user.")
+@register("user", "Print the current Eclipse Shell username (shown in the prompt).")
 def cmd_user(args): print(STATE["user"])
 
 
-@register("env", "Environment vars.")
+@register("env", "List environment variables, or print a single one. Usage: env [var]")
 def cmd_env(args):
     if args: print(os.environ.get(args[0], f"[not set] {args[0]}")); return
     for k, v in sorted(os.environ.items()): print(f"  {k}={v}")
 
 
-@register("time", "Time.")
+@register("time", "Print the current local time in HH:MM:SS format.")
 def cmd_time(args): print(time.strftime("%Y-%m-%d %H:%M:%S"))
 
 
-@register("date", "Date.")
+@register("date", "Print the current local date in YYYY-MM-DD format.")
 def cmd_date(args): print(time.strftime("%Y-%m-%d"))
 
 
-@register("uptime", "Uptime.")
+@register("uptime", "Show how long the system has been running since the last boot.")
 def cmd_uptime(args):
     print(run_shell("net statistics workstation" if is_windows() else "uptime"))
 
 
-@register("temp", "Temp files.")
+@register("temp", "Show the size of your temp folder, or clear it with 'temp clear'.")
 def cmd_temp(args):
     tmpdir = tempfile.gettempdir()
     if args and args[0].lower() == "clear":
@@ -1290,27 +1515,27 @@ def cmd_temp(args):
     print(f"  Size : {human_bytes(total)}")
 
 
-@register("proc", "Process count.")
+@register("proc", "Print just the total number of running processes — fastest check.")
 def cmd_proc(args): print(f"  Running processes: {len(get_processes())}")
 
 
-@register("top5", "Top 5 processes.")
+@register("top5", "Show the 5 processes using the most memory right now. Quick glance.")
 def cmd_top5(args): cmd_top(["5"])
 
 
-@register("services", "Services (Win).")
+@register("services", "List all Windows services and their current state (Windows only).")
 def cmd_services(args):
     if not is_windows(): print("[ERROR] Windows only."); return
     print(run_shell("sc query type= service state= all | findstr SERVICE_NAME"))
 
 
-@register("startup", "Startup programs (Win).")
+@register("startup", "List programs that launch automatically on Windows boot (Windows only).")
 def cmd_startup(args):
     if not is_windows(): print("[ERROR] Windows only."); return
     print(run_shell("wmic startup get Caption,Command"))
 
 
-@register("drivers", "Drivers (Win).")
+@register("drivers", "List all installed hardware drivers on Windows (Windows only).")
 def cmd_drivers(args):
     if not is_windows(): print("[ERROR] Windows only."); return
     print(run_shell("driverquery"))
@@ -1319,7 +1544,7 @@ def cmd_drivers(args):
 # ============================================================
 #  DEV
 # ============================================================
-@register("py", "Run Python file.")
+@register("py", "Run a Python script and show its output. Usage: py <file.py> [args...]")
 def cmd_py(args):
     if not args: print("[ERROR] Usage: py <file.py> [args...]"); return
     p = resolve_path(args[0])
@@ -1327,7 +1552,7 @@ def cmd_py(args):
     run_shell(f'python "{p}" ' + " ".join(args[1:]), live=True, timeout=300)
 
 
-@register("json", "Pretty JSON.")
+@register("json", "Pretty-print a JSON file with indentation. Usage: json <file>")
 def cmd_json(args):
     if not args: print("[ERROR] Usage: json <file>"); return
     try:
@@ -1336,7 +1561,7 @@ def cmd_json(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("hex", "Hex dump.")
+@register("hex", "Print a hex dump of a file's first N bytes (default 256). Usage: hex <file> [n]")
 def cmd_hex(args):
     if not args: print("[ERROR] Usage: hex <file> [n]"); return
     limit = int(args[1]) if len(args) > 1 and args[1].isdigit() else 256
@@ -1350,7 +1575,7 @@ def cmd_hex(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("count", "Count files by ext.")
+@register("count", "Count how many files exist per extension in a folder. Usage: count [path]")
 def cmd_count(args):
     path = resolve_path(args[0]) if args else STATE["cwd"]
     ext_count = {}
@@ -1362,7 +1587,7 @@ def cmd_count(args):
         print(f"  {n:>6}  {ext}")
 
 
-@register("todo", "Find TODOs.")
+@register("todo", "Scan code files for TODO/FIXME comments and print them with line numbers.")
 def cmd_todo(args):
     path = resolve_path(args[0]) if args else STATE["cwd"]
     count = 0
@@ -1383,7 +1608,7 @@ def cmd_todo(args):
 # ============================================================
 #  BATCH
 # ============================================================
-@register("findext", "Find by extension.")
+@register("findext", "Recursively find all files matching an extension. Usage: findext <ext>")
 def cmd_findext(args):
     if not args: print("[ERROR] Usage: findext <ext>"); return
     ext = args[0]
@@ -1397,7 +1622,7 @@ def cmd_findext(args):
     if hits == 0: print(f"[no {ext} files]")
 
 
-@register("empty", "Empty files.")
+@register("empty", "Find every file in a directory tree that has zero bytes. Usage: empty [path]")
 def cmd_empty(args):
     path = resolve_path(args[0]) if args else STATE["cwd"]
     count = 0
@@ -1410,7 +1635,7 @@ def cmd_empty(args):
     print(f"\n  {count} empty file(s)")
 
 
-@register("bigfiles", "Biggest files.")
+@register("bigfiles", "List the largest files in the current tree. Usage: bigfiles [n]. Default n=15.")
 def cmd_bigfiles(args):
     n = int(args[0]) if args and args[0].isdigit() else 15
     files = []
@@ -1429,26 +1654,26 @@ def cmd_bigfiles(args):
 # ============================================================
 #  UTILITY
 # ============================================================
-@register("calc", "Calculate a certain value.")
+@register("calc", "Evaluate a math expression and print the result. Usage: calc <expr>")
 def cmd_calc(args):
     if not args: print("[ERROR] Usage: calc <expr>"); return
     try: print(f"  {eval(' '.join(args), {'__builtins__': {}}, {})}")
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("random", "Generate a random number.")
+@register("random", "Print a random integer between min and max. Usage: random [min] [max]. Defaults 1-100.")
 def cmd_random(args):
     lo = int(args[0]) if args and args[0].lstrip("-").isdigit() else 1
     hi = int(args[1]) if len(args) > 1 and args[1].lstrip("-").isdigit() else 100
     print(f"  {random.randint(lo, hi)}")
 
 
-@register("uuid", "Generate a random UUID.")
+@register("uuid", "Generate a random UUID (version 4 — fully random, not sortable).")
 def cmd_uuid(args):
     import uuid as _u; print(f"  {_u.uuid4()}")
 
 
-@register("hash", "Hash string.")
+@register("hash", "Hash a string with md5/sha1/sha256/sha512. Usage: hash <algo> <text>")
 def cmd_hash(args):
     if len(args) < 2: print("[ERROR] Usage: hash <algo> <text>"); return
     algo = args[0].lower()
@@ -1456,21 +1681,22 @@ def cmd_hash(args):
     print(f"  {hashlib.new(algo, ' '.join(args[1:]).encode()).hexdigest()}")
 
 
-@register("base64", "Base64.")
+@register("base64", "Base64-encode text, or decode with -d. Usage: base64 [-d] <text>")
 def cmd_base64(args):
-    import base64 as _b
     if not args: print("[ERROR] Usage: base64 [-d] <text>"); return
     decode = args[0] == "-d"
     text = " ".join(args[1:] if decode else args)
-    try: print(f"  {_b.b64decode(text.encode()).decode() if decode else _b.b64encode(text.encode()).decode()}")
+    try:
+        if decode: print(f"  {_b64.b64decode(text.encode()).decode()}")
+        else: print(f"  {_b64.b64encode(text.encode()).decode()}")
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("now", "Datetime.")
+@register("now", "Print the current date and time — same as 'time' but simpler name.")
 def cmd_now(args): print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
-@register("stopwatch", "Start and stop a stopwatch.")
+@register("stopwatch", "Start a stopwatch. Press Enter to stop and see the elapsed time.")
 def cmd_stopwatch(args):
     print("[stopwatch] Press Enter to stop...")
     start = time.time()
@@ -1479,14 +1705,14 @@ def cmd_stopwatch(args):
     print(f"  Elapsed: {time.time() - start:.2f} seconds")
 
 
-@register("password", "Generate a random password.")
+@register("password", "Generate a random password. Usage: password [length]. Default 16 chars.")
 def cmd_password(args):
     length = int(args[0]) if args and args[0].isdigit() else 16
     chars = string.ascii_letters + string.digits + "!@#$%^&*"
     print(f"  {''.join(random.choice(chars) for _ in range(length))}")
 
 
-@register("unitconvert", "Convert units.")
+@register("unitconvert", "Convert between units. Temp: c/f/k, Length: m/km/mi/ft, Mass: kg/g/lb/oz.")
 def cmd_unitconvert(args):
     if len(args) < 3: print("[ERROR] Usage: unitconvert <v> <from> <to>"); return
     try: val = float(args[0])
@@ -1511,7 +1737,7 @@ def cmd_unitconvert(args):
     print("[ERROR] Unsupported.")
 
 
-@register("bmi", "BMI.")
+@register("bmi", "Calculate Body Mass Index from weight and height. Usage: bmi <kg> <cm>")
 def cmd_bmi(args):
     if len(args) < 2: print("[ERROR] Usage: bmi <kg> <cm>"); return
     try:
@@ -1522,7 +1748,7 @@ def cmd_bmi(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("avg", "Average.")
+@register("avg", "Compute sum, average, min, and max of a list of numbers. Usage: avg <n1> <n2> ...")
 def cmd_avg(args):
     try: nums = [float(a) for a in args]
     except ValueError: print("[ERROR] All numbers."); return
@@ -1531,7 +1757,7 @@ def cmd_avg(args):
     print(f"  Min: {min(nums)}  Max: {max(nums)}")
 
 
-@register("prime", "Is prime.")
+@register("prime", "Check if a number is prime. Usage: prime <n>")
 def cmd_prime(args):
     if not args: print("[ERROR] Usage: prime <n>"); return
     try: n = int(args[0])
@@ -1542,7 +1768,7 @@ def cmd_prime(args):
     print(f"  {n} is prime.")
 
 
-@register("factors", "Factors.")
+@register("factors", "Print every integer that divides evenly into a number. Usage: factors <n>")
 def cmd_factors(args):
     if not args: print("[ERROR] Usage: factors <n>"); return
     try: n = abs(int(args[0]))
@@ -1550,7 +1776,7 @@ def cmd_factors(args):
     print(f"  {n}: {[i for i in range(1, n+1) if n % i == 0]}")
 
 
-@register("timer", "Countdown.")
+@register("timer", "Count down from N seconds, then beep. Usage: timer <seconds>")
 def cmd_timer(args):
     if not args: print("[ERROR] Usage: timer <seconds>"); return
     try:
@@ -1561,7 +1787,7 @@ def cmd_timer(args):
     except (ValueError, KeyboardInterrupt): print("  [cancelled]")
 
 
-@register("morse", "Text to Morse.")
+@register("morse", "Convert text to Morse code. Usage: morse <text>")
 def cmd_morse(args):
     if not args: print("[ERROR] Usage: morse <text>"); return
     code = {"A":".-","B":"-...","C":"-.-.","D":"-..","E":".","F":"..-.","G":"--.","H":"....",
@@ -1572,7 +1798,7 @@ def cmd_morse(args):
     print("  " + " ".join(code.get(c, "?") for c in " ".join(args).upper()))
 
 
-@register("caesar", "Caesar cipher.")
+@register("caesar", "Shift letters in text by N positions (Caesar cipher). Usage: caesar <shift> <text>")
 def cmd_caesar(args):
     if len(args) < 2: print("[ERROR] Usage: caesar <shift> <text>"); return
     try: shift = int(args[0])
@@ -1586,7 +1812,7 @@ def cmd_caesar(args):
     print(f"  {out}")
 
 
-@register("roll", "Roll dice.")
+@register("roll", "Roll N dice with S sides each. Usage: roll <n>d<sides> (example: 2d6)")
 def cmd_roll(args):
     if not args or "d" not in args[0]: print("[ERROR] Usage: roll <n>d<sides>"); return
     try:
@@ -1599,7 +1825,7 @@ def cmd_roll(args):
     print(f"  Total: {sum(rolls)}")
 
 
-@register("rps", "Rock paper scissors.")
+@register("rps", "Play rock paper scissors against the computer. Usage: rps <rock|paper|scissors>")
 def cmd_rps(args):
     if not args or args[0].lower() not in ("rock","paper","scissors"): print("[ERROR] Usage: rps <rock|paper|scissors>"); return
     player = args[0].lower()
@@ -1610,43 +1836,36 @@ def cmd_rps(args):
     else: print("  Computer wins.")
 
 
-@register("luck", "Luck %.")
+@register("luck", "Roll a random 'luck percentage' with a visual bar. Just for fun.")
 def cmd_luck(args):
     pct = random.randint(0, 100)
     bar = "#" * (pct // 5) + "." * (20 - pct // 5)
     print(f"  Luck: {pct}%  [{bar}]")
 
 
-@register("coin", "Flip coin.")
+@register("coin", "Flip a coin and print HEADS or TAILS.")
 def cmd_coin(args): print(f"  {'HEADS' if random.randint(0, 1) == 0 else 'TAILS'}")
 
 
-@register("dice", "Roll die.")
+@register("dice", "Roll a single die. Usage: dice [sides]. Default 6 sides.")
 def cmd_dice(args):
     sides = int(args[0]) if args and args[0].isdigit() else 6
     print(f"  {random.randint(1, sides)}")
 
 
-@register("shuffle", "Shuffle.")
+@register("shuffle", "Randomly shuffle the words you pass in. Usage: shuffle <a> <b> <c> ...")
 def cmd_shuffle(args):
     if not args: print("[ERROR] Usage: shuffle <a> <b> ..."); return
     items = list(args); random.shuffle(items); print(f"  {' '.join(items)}")
 
 
-@register("pick", "Pick one.")
+@register("pick", "Pick one random item from a list. Usage: pick <a> <b> <c> ...")
 def cmd_pick(args):
     if not args: print("[ERROR] Usage: pick <a> <b> ..."); return
     print(f"  {random.choice(args)}")
 
 
-@register("toss", "Coin toss.")
-def cmd_toss(args):
-    result = random.choice(["HEADS", "TAILS"])
-    print("  Flipping..."); time.sleep(0.5)
-    print(f"  Result: {BOLD}{result}{RESET}")
-
-
-@register("fortune", "Fortune.")
+@register("fortune", "Print a random fortune / life advice line. Just for fun.")
 def cmd_fortune(args):
     fs = ["You will write a bug that haunts you for years.",
           "The bug is not in the code. It's in the assumptions.",
@@ -1659,7 +1878,7 @@ def cmd_fortune(args):
     print(f"  {random.choice(fs)}")
 
 
-@register("quote", "Quote.")
+@register("quote", "Print a random programming quote with attribution.")
 def cmd_quote(args):
     qs = [("Talk is cheap. Show me the code.", "Linus Torvalds"),
           ("Premature optimization is the root of all evil.", "Donald Knuth"),
@@ -1671,7 +1890,7 @@ def cmd_quote(args):
     print(f"      - {a}")
 
 
-@register("challenge", "Coding challenge.")
+@register("challenge", "Print a random programming challenge to practice your skills.")
 def cmd_challenge(args):
     cs = ["Return the nth Fibonacci in O(1) space.",
           "Reverse a linked list without extra memory.",
@@ -1682,7 +1901,7 @@ def cmd_challenge(args):
     print(f"  {random.choice(cs)}")
 
 
-@register("cowsay", "Cow says something.")
+@register("cowsay", "A cow says whatever you give it. Usage: cowsay <text>")
 def cmd_cowsay(args):
     text = " ".join(args) if args else "Hello from Eclipse Shell!"
     b = "-" * (len(text) + 2)
@@ -1694,7 +1913,7 @@ def cmd_cowsay(args):
     print("                ||     ||")
 
 
-@register("matrix", "Matrix rain.")
+@register("matrix", "Print 20 lines of fake Matrix-style green rain. Just for fun.")
 def cmd_matrix(args):
     try:
         for _ in range(20):
@@ -1703,7 +1922,7 @@ def cmd_matrix(args):
     except KeyboardInterrupt: pass
 
 
-@register("meme", "Random meme.")
+@register("meme", "Print a random motivational/dev meme message.")
 def cmd_meme(args):
     ms = ["you got this", "ship it", "one more bug and then sleep",
           "it works on my machine", "delete node_modules and try again",
@@ -1713,7 +1932,7 @@ def cmd_meme(args):
     print(f"  {random.choice(ms)}")
 
 
-@register("progressbar", "Progress bar.")
+@register("progressbar", "Print a fake animated progress bar. Usage: progressbar [seconds]")
 def cmd_progressbar(args):
     secs = float(args[0]) if args and args[0].replace(".","").isdigit() else 3.0
     for i in range(21):
@@ -1725,7 +1944,7 @@ def cmd_progressbar(args):
     print()
 
 
-@register("spinner", "Spinner.")
+@register("spinner", "Print a spinning 'working...' animation. Usage: spinner [seconds]")
 def cmd_spinner(args):
     secs = float(args[0]) if args and args[0].replace(".","").isdigit() else 3.0
     frames = ["|", "/", "-", "\\"]
@@ -1739,62 +1958,40 @@ def cmd_spinner(args):
     print("\r  done.       ")
 
 
-@register("beep", "Beep.")
+@register("beep", "Play a beep through the real sound system. Usage: beep [freq] [ms]. Defaults 1000Hz/200ms.")
 def cmd_beep(args):
-    print("\a", end="", flush=True); print("[beep]")
+    freq = int(args[0]) if args and args[0].isdigit() else 1000
+    dur = int(args[1]) if len(args) > 1 and args[1].isdigit() else 200
+    try:
+        if is_windows():
+            import winsound
+            winsound.Beep(freq, dur)
+        elif is_android():
+            subprocess.run("termux-vibrate -d 200", shell=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("\a", end="", flush=True)
+        elif platform.system() == "Darwin":
+            subprocess.run("osascript -e 'beep'", shell=True)
+        else:
+            print("\a", end="", flush=True)
+        print("[beep]")
+    except Exception:
+        print("\a", end="", flush=True)
+        print("[beep]")
 
 
-@register("ascii-banner", "Big ASCII banner.  Usage: ascii-banner <text>")
-def cmd_ascii_banner(args):
-    if not args: print("[ERROR] Usage: ascii-banner <text>"); return
-    text = " ".join(args).upper()
-    font = {
-        "A": ["  A  ", " A A ", "AAAAA", "A   A", "A   A"],
-        "B": ["BBBB ", "B   B", "BBBB ", "B   B", "BBBB "],
-        "C": [" CCCC", "C    ", "C    ", "C    ", " CCCC"],
-        "D": ["DDDD ", "D   D", "D   D", "D   D", "DDDD "],
-        "E": ["EEEEE", "E    ", "EEE  ", "E    ", "EEEEE"],
-        "F": ["FFFFF", "F    ", "FFF  ", "F    ", "F    "],
-        "G": [" GGGG", "G    ", "G  GG", "G   G", " GGG "],
-        "H": ["H   H", "H   H", "HHHHH", "H   H", "H   H"],
-        "I": ["IIIII", "  I  ", "  I  ", "  I  ", "IIIII"],
-        "J": ["    J", "    J", "    J", "J   J", " JJJ "],
-        "K": ["K   K", "K  K ", "KKK  ", "K  K ", "K   K"],
-        "L": ["L    ", "L    ", "L    ", "L    ", "LLLLL"],
-        "M": ["M   M", "MM MM", "M M M", "M   M", "M   M"],
-        "N": ["N   N", "NN  N", "N N N", "N  NN", "N   N"],
-        "O": [" OOO ", "O   O", "O   O", "O   O", " OOO "],
-        "P": ["PPPP ", "P   P", "PPPP ", "P    ", "P    "],
-        "Q": [" QQQ ", "Q   Q", "Q   Q", "Q  Q ", " QQ Q"],
-        "R": ["RRRR ", "R   R", "RRRR ", "R R  ", "R  RR"],
-        "S": [" SSSS", "S    ", " SSS ", "    S", "SSSS "],
-        "T": ["TTTTT", "  T  ", "  T  ", "  T  ", "  T  "],
-        "U": ["U   U", "U   U", "U   U", "U   U", " UUU "],
-        "V": ["V   V", "V   V", "V   V", " V V ", "  V  "],
-        "W": ["W   W", "W   W", "W W W", "WW WW", "W   W"],
-        "X": ["X   X", " X X ", "  X  ", " X X ", "X   X"],
-        "Y": ["Y   Y", " Y Y ", "  Y  ", "  Y  ", "  Y  "],
-        "Z": ["ZZZZZ", "   Z ", "  Z  ", " Z   ", "ZZZZZ"],
-        " ": ["     ", "     ", "     ", "     ", "     "],
-    }
-    for row in range(5):
-        line = ""
-        for ch in text: line += font.get(ch, ["?????"] * 5)[row] + " "
-        print(line)
-
-
-@register("calendar", "Calendar.")
+@register("calendar", "Print a calendar for the current month with today highlighted.")
 def cmd_calendar(args):
     import calendar as c
     n = datetime.datetime.now()
     c.prmonth(n.year, n.month)
 
 
-@register("timestamp", "Unix timestamp.")
+@register("timestamp", "Print the current Unix timestamp (seconds since 1970).")
 def cmd_timestamp(args): print(f"  {int(time.time())}")
 
 
-@register("daysuntil", "Days until.")
+@register("daysuntil", "Print how many days are left until a given date. Usage: daysuntil YYYY-MM-DD")
 def cmd_daysuntil(args):
     if not args: print("[ERROR] Usage: daysuntil YYYY-MM-DD"); return
     try:
@@ -1806,7 +2003,7 @@ def cmd_daysuntil(args):
 # ============================================================
 #  PROCESS
 # ============================================================
-@register("tasklist", "Processes.")
+@register("tasklist", "List every running process, sorted by memory usage (highest first).")
 def cmd_tasklist(args):
     procs = get_processes()
     if args: procs = [p for p in procs if args[0].lower() in p["name"].lower()]
@@ -1818,11 +2015,11 @@ def cmd_tasklist(args):
     print()
 
 
-@register("ps", "Processes (alias).")
+@register("ps", "List running processes — Unix-style alias for 'tasklist'.")
 def cmd_ps(args): cmd_tasklist(args)
 
 
-@register("top", "Top processes.")
+@register("top", "Show the top N processes by memory. Usage: top [n]. Default 15.")
 def cmd_top(args):
     n = int(args[0]) if args and args[0].isdigit() else 15
     procs = get_processes()
@@ -1832,7 +2029,7 @@ def cmd_top(args):
     print()
 
 
-@register("taskinfo", "Process details.")
+@register("taskinfo", "Show details about a process by PID or name. Usage: taskinfo <pid|name>")
 def cmd_taskinfo(args):
     if not args: print("[ERROR] Usage: taskinfo <pid|name>"); return
     procs = get_processes(); t = args[0]
@@ -1846,26 +2043,26 @@ def cmd_taskinfo(args):
         print()
 
 
-@register("kill", "Kill process.")
+@register("kill", "Force-kill a process by PID. Usage: kill <pid>. Warn: no confirmation.")
 def cmd_kill(args):
     if not args: print("[ERROR] Usage: kill <pid>"); return
     cmd = f"taskkill /PID {args[0]} /F" if is_windows() else f"kill -9 {args[0]}"
     print(run_shell(cmd))
 
 
-@register("battery", "Battery.")
+@register("battery", "Show battery level and charging status. Windows/Android only.")
 def cmd_battery(args):
     if is_android(): print(run_shell("termux-battery-status"))
     elif is_windows(): print(run_shell("WMIC Path Win32_Battery Get EstimatedChargeRemaining"))
     else: print(run_shell("upower -i $(upower -e | grep BAT)"))
 
 
-@register("storage", "Storage.")
+@register("storage", "Show all storage drives with total size and free space.")
 def cmd_storage(args):
     print(run_shell("wmic logicaldisk get size,freespace,caption" if is_windows() else "df -h"))
 
 
-@register("apps", "Android apps.")
+@register("apps", "List installed Android packages. Android/Termux only. Usage: apps")
 def cmd_apps(args):
     if not is_android(): print("[ERROR] Android only."); return
     print(run_shell("pm list packages | head -50"))
@@ -1874,7 +2071,7 @@ def cmd_apps(args):
 # ============================================================
 #  START
 # ============================================================
-@register("start", "Launch program.")
+@register("start", "Launch any installed program. Usage: start <program> [args...]. Pathfinder finds the exe.")
 def cmd_start(args):
     if not args: print("[ERROR] Usage: start <program> [args...]"); return
     path = find_program(args[0])
@@ -1889,7 +2086,7 @@ def cmd_start(args):
 # ============================================================
 #  NETWORK
 # ============================================================
-@register("wlan", "WiFi profiles.")
+@register("wlan", "List saved WiFi profiles, or show details of one. Usage: wlan [profile <name>]")
 def cmd_wlan(args):
     if is_windows():
         if args and args[0].lower() == "profile" and len(args) >= 2:
@@ -1899,7 +2096,7 @@ def cmd_wlan(args):
     else: print("[ERROR] Windows/Android only.")
 
 
-@register("ping", "Ping host.")
+@register("ping", "Send ICMP pings to a host. Usage: ping <host> [count]. Default 4 pings.")
 def cmd_ping(args):
     if not args: print("[ERROR] Usage: ping <host> [count]"); return
     count = args[1] if len(args) > 1 else "4"
@@ -1907,33 +2104,33 @@ def cmd_ping(args):
     run_shell(f"ping {flag} {count} {args[0]}", live=True)
 
 
-@register("ip", "IP config.")
+@register("ip", "Show your full IP configuration — adapters, addresses, gateway.")
 def cmd_ip(args): print(run_shell("ipconfig" if is_windows() else "ip addr || ifconfig"))
 
 
-@register("ifconfig", "Interfaces.")
+@register("ifconfig", "Show your network interfaces — alias for 'ip'.")
 def cmd_ifconfig(args): cmd_ip(args)
 
 
-@register("netstat", "Connections.")
+@register("netstat", "Show all active network connections and listening ports.")
 def cmd_netstat(args): print(run_shell("netstat -an"))
 
 
-@register("route", "Routing table.")
+@register("route", "Print the system routing table — how traffic leaves your machine.")
 def cmd_route(args): print(run_shell("route print" if is_windows() else "ip route || route -n"))
 
 
-@register("arp", "ARP table.")
+@register("arp", "Print the ARP table — IP-to-MAC mappings on your local network.")
 def cmd_arp(args): print(run_shell("arp -a"))
 
 
-@register("nslookup", "DNS lookup.")
+@register("nslookup", "Resolve a hostname to IP addresses via DNS. Usage: nslookup <host>")
 def cmd_nslookup(args):
     if not args: print("[ERROR] Usage: nslookup <host>"); return
     print(run_shell(f"nslookup {args[0]}"))
 
 
-@register("tracert", "Trace route.")
+@register("tracert", "Trace the route packets take to reach a host. Usage: tracert <host>. Ctrl+C cancels.")
 def cmd_tracert(args):
     if not args: print("[ERROR] Usage: tracert <host>"); return
     print(f"[tracert] tracing {args[0]}..."); sys.stdout.flush()
@@ -1943,7 +2140,7 @@ def cmd_tracert(args):
     except KeyboardInterrupt: print("\n[tracert] cancelled")
 
 
-@register("localip", "Local IP.")
+@register("localip", "Print your local IP on the LAN (the address your router gave you).")
 def cmd_localip(args):
     import socket as s
     try:
@@ -1953,11 +2150,11 @@ def cmd_localip(args):
     except Exception as e: print(f"[ERROR] {e}")
 
 
-@register("publicip", "Public IP.")
+@register("publicip", "Print your public IP (how the internet sees you). Requires internet.")
 def cmd_publicip(args): print(run_shell("curl -s https://api.ipify.org", timeout=15))
 
 
-@register("port", "Check port.")
+@register("port", "Check if a TCP port is open on a host. Usage: port <host> <port>")
 def cmd_port(args):
     if len(args) < 2: print("[ERROR] Usage: port <host> <port>"); return
     import socket as s
@@ -1971,13 +2168,13 @@ def cmd_port(args):
     finally: sock.close()
 
 
-@register("curl", "Fetch URL.")
+@register("curl", "Fetch a URL and print the response body. Usage: curl <url>")
 def cmd_curl(args):
     if not args: print("[ERROR] Usage: curl <url>"); return
     print(run_shell(f"curl -s {args[0]}", timeout=30))
 
 
-@register("wget", "Download.")
+@register("wget", "Download a URL to stdout. Linux/macOS/Android only. Usage: wget <url>")
 def cmd_wget(args):
     if not args: print("[ERROR] Usage: wget <url>"); return
     if is_windows(): print("[ERROR] wget not on Windows."); return
@@ -1987,14 +2184,14 @@ def cmd_wget(args):
 # ============================================================
 #  USER / POWER
 # ============================================================
-@register("cu", "Change username.")
+@register("cu", "Change the Eclipse Shell username shown in the prompt. Usage: cu <new_name>")
 def cmd_cu(args):
     if not args: print("[ERROR] Usage: cu <new_username>"); return
     old = STATE["user"]; STATE["user"] = args[0]
     print(f"[user] '{old}' -> '{args[0]}'")
 
 
-@register("shutdown", "Shutdown PC.")
+@register("shutdown", "Shut down or restart the PC. Usage: shutdown [s|r|a] [seconds]. No args = instant off.")
 def cmd_shutdown(args):
     if is_windows():
         if not args: subprocess.run("shutdown /s /t 0", shell=True); return
@@ -2007,7 +2204,7 @@ def cmd_shutdown(args):
     else: print("[ERROR] Windows/Android only.")
 
 
-@register("reboot", "Restart.")
+@register("reboot", "Restart the device immediately. Windows/Android only.")
 def cmd_reboot(args):
     if is_windows(): subprocess.run("shutdown /r /t 0", shell=True)
     elif is_android(): print(run_shell("su -c 'reboot' || echo '[ERROR] root required'"))
@@ -2017,7 +2214,7 @@ def cmd_reboot(args):
 # ============================================================
 #  CALL
 # ============================================================
-@register("call", "Call another command.")
+@register("call", "Run another Eclipse Shell command with args. Usage: call <command> [args...]")
 def cmd_call(args):
     if not args: print("[ERROR] Usage: call <command> [args...]"); return
     name = args[0].lower().rstrip("()")
@@ -2081,11 +2278,27 @@ def run_redirect(line):
 
 
 # ============================================================
-#  MAIN
+#  TAB COMPLETION
+# ============================================================
+def completer(text, state):
+    if readline is None: return None
+    options = [c for c in COMMANDS.keys() if c.startswith(text)]
+    options += [a for a in STATE["aliases"].keys() if a.startswith(text)]
+    if state < len(options): return options[state]
+    return None
+
+
+# ============================================================
+#  DISPATCH
 # ============================================================
 def dispatch(line):
     parts = line.strip().split()
     if not parts: return
+    first = parts[0]
+    if first in STATE["aliases"]:
+        line = STATE["aliases"][first] + " " + " ".join(parts[1:])
+        parts = line.strip().split()
+        if not parts: return
     STATE["history"].append(line.strip())
     name = parts[0].lower().rstrip("()")
     args = parts[1:]
@@ -2098,6 +2311,9 @@ def dispatch(line):
     except Exception as e: print(f"[ERROR] {e}")
 
 
+# ============================================================
+#  BANNER
+# ============================================================
 def banner():
     print(r"""
  ███████╗ ██████╗██╗     ██╗██████╗ ███████╗███████╗
@@ -2114,14 +2330,20 @@ def banner():
         ███████║██║  ██║███████╗███████╗███████╗
         ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
     """)
-    print(f"Eclipse Shell [Version {STATE['version']} ({STATE['status']})]")
+    print(f"  Version {STATE['version']} ({STATE['status']})")
     print(f"  Copyright (c) 2026 {STATE['author']}")
-    print("  Type 'help' for commands, 'license' for terms.")
+    print("  Type 'help' for commands, 'man <cmd>' for details.")
     print(f"  {len(COMMANDS)} commands registered.")
     print()
 
 
+# ============================================================
+#  MAIN
+# ============================================================
 def main():
+    if readline is not None:
+        readline.set_completer(completer)
+        readline.parse_and_bind("tab: complete")
     banner()
     while True:
         try:
