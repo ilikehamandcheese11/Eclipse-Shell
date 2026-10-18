@@ -46,8 +46,8 @@ STATE = {
     "version": "0.5.0",
     "status": "indev",
     "author": "ilikehamandcheese11",
-    "youtube": "@yourhandle",
-    "discord": "@yourname",
+    "youtube": "https://www.youtube.com/@ilikehamandcheese11",
+    "discord": "@ilikehamandcheese11",
     "aliases": {},
 }
 
@@ -2330,7 +2330,7 @@ def banner():
         ███████║██║  ██║███████╗███████╗███████╗
         ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
     """)
-    print(f"  Version {STATE['version']} ({STATE['status']})")
+    print(f"  Eclipse Shell Version {STATE['version']} ({STATE['status']})")
     print(f"  Copyright (c) 2026 {STATE['author']}")
     print("  Type 'help' for commands, 'man <cmd>' for details.")
     print(f"  {len(COMMANDS)} commands registered.")
