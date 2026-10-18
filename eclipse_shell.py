@@ -386,16 +386,138 @@ def find_program(name):
 LICENSE_TEXT = """Eclipse Shell — Proprietary License
 Copyright (c) 2026 ilikehamandcheese11. All rights reserved.
 
+================================================================
+                         TERMS OF USE
+================================================================
+
 1. OWNERSHIP
-   Eclipse Shell is the exclusive property of ilikehamandcheese11.
-2. GRANT
-   Limited, non-exclusive, non-transferable license for personal use.
+
+   Eclipse Shell (the "Software"), including its source code,
+   documentation, branding, name, and all associated assets, is
+   the exclusive property of ilikehamandcheese11 (the "Author").
+   All rights not expressly granted in this License are reserved
+   by the Author.
+
+2. GRANT OF LICENSE
+
+   You are granted a limited, non-exclusive, non-transferable,
+   revocable license to:
+
+     a) Download and use the Software for personal, educational,
+        or internal business purposes.
+
+     b) Make a single backup copy of the Software for archival
+        purposes only, provided it retains this License.
+
 3. RESTRICTIONS
-   No redistribution, resale, modification, or rebranding.
-4. NO WARRANTY
-   Provided "AS IS". Author not liable for damages.
-5. CONTACT
-   YouTube: @yourhandle | Discord: @yourname
+
+   You may NOT, under any circumstances:
+
+     a) Copy, redistribute, publish, upload, share, or otherwise
+        make the Software available to any third party, whether
+        for free or for a fee.
+
+     b) Sell, resell, sublicense, rent, lease, or otherwise
+        commercialize the Software.
+
+     c) Modify, adapt, translate, reverse-engineer, decompile,
+        disassemble, or create derivative works based on the
+        Software.
+
+     d) Remove, alter, or obscure any copyright notice,
+        attribution, license text, or branding contained in the
+        Software.
+
+     e) Claim authorship, ownership, or credit for the Software
+        or any part of it.
+
+     f) Rebrand, rename, or present the Software under a
+        different name or identity.
+
+     g) Use the Software as part of a larger product offered for
+        sale without explicit written permission from the Author.
+
+     h) Use the Software for any unlawful purpose or in violation
+        of applicable laws or regulations.
+
+4. THIRD-PARTY COMPONENTS
+
+   The Software may reference or invoke third-party programs,
+   libraries, or services. Use of those components is governed
+   by their own respective licenses. This License applies only
+   to Eclipse Shell itself.
+
+5. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NON-INFRINGEMENT. THE AUTHOR MAKES NO WARRANTY THAT THE SOFTWARE
+   WILL BE ERROR-FREE, SECURE, OR UNINTERRUPTED.
+
+6. LIMITATION OF LIABILITY
+
+   IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES,
+   OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+   OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+   This includes, without limitation, any damages resulting from:
+
+     - Data loss or corruption
+     - System malfunction or hardware damage
+     - Unintended execution of commands
+     - Security breaches or unauthorized access
+     - Any indirect, incidental, or consequential damages
+
+   The user assumes full responsibility for any commands executed
+   through the Software and any consequences thereof.
+
+7. USER RESPONSIBILITY
+
+   Eclipse Shell is a command shell capable of executing system
+   commands. You acknowledge and agree that:
+
+     a) You are solely responsible for the commands you run.
+
+     b) You will not use the Software to harm, disrupt, or gain
+        unauthorized access to any system, network, or device.
+
+     c) You will comply with all applicable laws while using the
+        Software.
+
+8. TERMINATION
+
+   This License is effective until terminated. It will terminate
+   automatically without notice if you breach any of its terms.
+   Upon termination, you must immediately cease all use of the
+   Software and destroy all copies in your possession.
+
+   The Author reserves the right to revoke or modify this License
+   at any time, at their sole discretion.
+
+9. ENFORCEMENT
+
+   Unauthorized use, copying, distribution, or modification of
+   the Software constitutes copyright infringement and may result
+   in civil and/or criminal penalties under applicable law. The
+   Author reserves the right to pursue all available legal
+   remedies.
+
+10. CONTACT
+
+    For permissions, licensing inquiries, or commercial use
+    requests:
+
+      Author  : ilikehamandcheese11
+      YouTube : https://www.youtube.com/@ilikehamandcheese11
+      Discord : @ilikehamandcheese11
+
+================================================================
+   By using Eclipse Shell, you acknowledge that you have read,
+   understood, and agree to be bound by the terms of this License.
+   If you do not agree, you must not use the Software.
+================================================================
 """
 
 
