@@ -8,13 +8,15 @@ The developer of this program is not responsible for any damage to your hardware
 
 ## Features
 
-- **100+ commands** — filesystem, system info, process management, network tools, text utilities, more
-- **Real hardware detection** — CPU, RAM, GPU/VRAM (read from the Windows registry for accurate 64-bit values), disks
-- **Process manager** — `tasklist`, `top`, `taskinfo`, `kill`, `top5`, and more
-- **Network tools** — `ping`, `tracert`, `port`, `nslookup`, `arp`, `netstat`, `wlan`, `uuid`, and more
-- **Shell features** — pipes (`|`) and redirection (`>`, `>>`)
-- **Cross-platform** — Windows, Linux, macOS, and Android (via Termux)
-- **Zero dependencies** — pure Python standard library
+- **180 commands** — filesystem, system info, process management, network tools, text utilities, developer tools, and more.
+- **Real hardware detection** — CPU, RAM, GPU/VRAM (read from the Windows registry for accurate 64-bit values), disks.
+- **Process manager** — `tasklist`, `top`, `taskinfo`, `kill`, `top5`, and more.
+- **Network tools** — `ping`, `tracert`, `port`, `nslookup`, `arp`, `netstat`, `wlan`, `httpstatus`, `whois`, and more.
+- **Developer tools** — `nano` (built-in editor), `venv`, `pipfreeze`, `sha256sum`, `strings`, `jqpath`, `jsoncheck`, and more.
+- **Shell features** — pipes (`|`), redirection (`>`, `>>`), aliases (`alias ll=dir`), and tab completion.
+- **Categorized help** — type `help` to see commands grouped by category, or `man <command>` for full details.
+- **Cross-platform** — Windows, Linux, macOS, and Android (via Termux).
+- **Zero dependencies** — pure Python standard library (psutil is optional for a speed boost).
 
 ## Requirements
 
@@ -24,32 +26,17 @@ The developer of this program is not responsible for any damage to your hardware
 
 ## How To Run
 
-** Windows and macOS:**
-```
-python C:\your\path\to\eclipse_shell.py or py C:\your\path\to\eclipse_shell.py or python3 C:\your\path\to\eclipse_shell.py
-```
+Navigate to the folder where you saved `eclipse_shell.py`.
 
-** Windows, Linux and Android (Termux):**
-```
-py C:\your\path\to\eclipse_shell.py
-```
+**On Windows:**
+~~~cmd
+python C:\Your\Path\To\Eclipse\Shell\eclipse_shell.py
+~~~
 
-** Windows, Linux and Android (Termux):**
-```
-python3 C:\your\path\to\eclipse_shell.py
-```
-
-** Linux and Android:**
-```
-python C:\your\path\to\eclipse_shell.py or py C:\your\path\to\eclipse_shell.py or python3 C:\your\path\to\eclipse_shell.py
-```
-
-** Windows, Linux and Android (Termux):**
-```
-py C:\your\path\to\eclipse_shell.py
-```
-
-** Windows, Linux and Android (Termux):**
-```
-python3 C:\your\path\to\eclipse_shell.py
-```
+**On Linux, macOS or Android (Termux):**
+~~~bash
+cd /your/path/to/eclipse_shell.py
+python3 eclipse_shell.py
+OR:
+python3 /your/path/to/eclipse_shell.py
+~~~
