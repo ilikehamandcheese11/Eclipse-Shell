@@ -21,7 +21,7 @@ Include:
 1. **What you did** — the exact command you ran
 2. **What happened** — the full error traceback or wrong output
 3. **What you expected** — what should have happened
-4. **Your environment** — OS, Python version, terminal (Windows Terminal? cmd? IDLE?)
+4. **Your environment** — OS, Python version, terminal (Windows Terminal? bash? IDLE?)
 
 The more info, the faster it gets fixed.
 
@@ -43,11 +43,10 @@ If it fits the roadmap, it gets built.
 
 ### Setup
 ```bash```
-git clone https://github.com/<your-username>/eclipse-shell.git
+git clone https://github.com/ilikehamandcheese11/Eclipse-Shell
 cd eclipse-shell
 
 ## Contact info:
 
 1. YouTube : https://www.youtube.com/ilikehamandcheese11
-2. Discord : @ilikehamandcheese11
-3. Discord Server : https://discord.gg/kaVFnKXn6
+2. Telegram : t.me/ilikehamandcheese11
