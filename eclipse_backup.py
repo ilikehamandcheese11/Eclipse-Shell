@@ -553,7 +553,7 @@ def cmd_about(args, stdin_text=None):
     print(f"  Python   : {platform.python_version()}")
     print(f"  psutil   : {'yes' if HAS_PSUTIL else 'no (optional speedup)'}")
     print()
-    print(f"  Contact  : {STATE['youtube']}  |  {STATE['discord']}")
+    print(f"  Contact  : {STATE['youtube']}  |  {STATE['telegram']}")
     print()
 
 
