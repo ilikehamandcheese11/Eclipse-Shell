@@ -55,7 +55,7 @@ STATE = {
     "status": "indev",
     "author": "ilikehamandcheese11",
     "youtube": "https://www.youtube.com/@ilikehamandcheese11",
-    "discord": "@ilikehamandcheese11",
+    "telegram" : "t.me/ilikehamandcheese11",
     "aliases": {},
 }
 
@@ -479,7 +479,7 @@ Copyright (c) 2026 ilikehamandcheese11. All rights reserved.
 10. CONTACT
     Author  : ilikehamandcheese11
     YouTube : https://www.youtube.com/@ilikehamandcheese11
-    Discord : @ilikehamandcheese11
+    Telegram : t.me/ilikehamandcheese11
 
 ================================================================
    By using Eclipse Shell, you acknowledge that you have read,
