@@ -1,1 +1,1 @@
-Message from lead dev: please note that the file by the name of "eclipse_launch" in this folder works for Linux, macOS and Android, not just Linux.
+Message from lead dev: please note that the file by the name of "linux_launch" in this folder works for Linux, macOS and Android, not just Linux. Also, please do NOT move "windows_launch.bat" unless you're a Linux, macOS or Android user, and "linux_launch" unless you are a Windows user. Best wishes.
