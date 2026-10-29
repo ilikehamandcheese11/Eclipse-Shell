@@ -1,0 +1,56 @@
+#!/bin/sh
+# =========================================================
+# ECLIPSE SHELL UNIVERSAL CLICKABLE LAUNCHER
+# Works on Linux, macOS, and Android (Termux)
+# =========================================================
+
+# --- PART 1: THE DESKTOP SHORTCUT (Linux & macOS) ---
+# If this file is double-clicked in a GUI, it will run the script.
+# If it's run from a terminal, this block just gets skipped.
+if [ -t 0 ] && [ -z "$1" ]; then
+    # We are in a GUI double-click (no terminal attached)
+    # Try to open a terminal window and run ourselves inside it.
+    if command -v gnome-terminal >/dev/null 2>&1; then
+        gnome-terminal -- "$0" --run
+        exit 0
+    elif command -v konsole >/dev/null 2>&1; then
+        konsole -e "$0" --run
+        exit 0
+    elif command -v xfce4-terminal >/dev/null 2>&1; then
+        xfce4-terminal -e "$0" --run
+        exit 0
+    elif command -v open >/dev/null 2>&1; then
+        # macOS specific
+        open -a Terminal "$0" --run
+        exit 0
+    fi
+    # If no terminal emulator is found, it will fall through and fail gracefully
+fi
+
+# --- PART 2: THE ACTUAL LAUNCHER ---
+# (This runs if we are in a terminal, or if the GUI trick above worked)
+
+# Get the absolute path of the folder containing this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR" || exit 1
+
+SCRIPT="eclipse_shell.py"
+
+if [ ! -f "$SCRIPT" ]; then
+    echo "[ERROR] Could not find $SCRIPT in $SCRIPT_DIR"
+    echo "Make sure eclipse_launch is in the same folder as eclipse_shell.py"
+    # Keep window open if double-clicked
+    if [ -t 0 ]; then read -p "Press Enter to close..."; fi
+    exit 1
+fi
+
+# Try Python launchers
+if command -v python3 >/dev/null 2>&1; then
+    exec python3 "$SCRIPT" "$@"
+elif command -v python >/dev/null 2>&1; then
+    exec python "$SCRIPT" "$@"
+else
+    echo "[ERROR] Python not found. Please install Python 3."
+    if [ -t 0 ]; then read -p "Press Enter to close..."; fi
+    exit 1
+fi

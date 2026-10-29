@@ -1,0 +1,1 @@
+Message from lead dev: please note that the file by the name of "eclipse_launch" in this folder works for Linux, macOS and Android, not just Linux.
