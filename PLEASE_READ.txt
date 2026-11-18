@@ -1,0 +1,9 @@
+Hello! This is an official devnote from the lead developer of the Eclipse Shell project, ilikehamandcheese11. This is a guide on what file you actually use when downloading Eclipse so you dont encounter problems.
+
+The file 'eclipse_shell' with NO .exe extension at the end is the LINUX, MACOS AND ANDROID-Only file. Use this is you have Linux, macOS or Android. Do not use it on Windows. 
+The file 'eclipse_shell.exe' with a .exe extension at the end is the WINDOWS-Only file. Use this if you have Windows.
+
+The reason im saying this is not because it'll brick your system in any way, but you'll just waste time downloading the wrong file not knowing it won't work. Certain files are assigned to work on only certain operating systems, so you'll waste time downloading it, trying to run it and realizing an operating system that doesn't support that file just wont run it, and then you'll have to go to the GitHub repo again and redownload the right file and... eh. time consuming stuff.
+
+Thank you for reading this file!
+Best wishes, ilikehamandcheese11.
